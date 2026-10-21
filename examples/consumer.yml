@@ -12,7 +12,7 @@ permissions:
   contents: read
 jobs:
   patchwork:
-    # Exemplo da política atual do bbw-checkout. O adaptador valida novamente
+    # Exemplo da política atual do bbdw-checkout. O adaptador valida novamente
     # a identidade do iniciador, a issue, o projeto e a release do incidente.
     if: >-
       github.ref == 'refs/heads/main' &&

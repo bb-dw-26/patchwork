@@ -11,7 +11,7 @@ Repositório da aplicação
                                                    → PR draft na aplicação
 ```
 
-O motor de geração desta primeira versão é a Action oficial do Codex. O consumidor inicial é `bbw-checkout`, com o cenário CHK-001 e incidentes da integração nativa do Sentry. Os demais repositórios podem reutilizar a orquestração depois de implementar seu adaptador; esta versão não os habilita automaticamente.
+O motor de geração desta primeira versão é a Action oficial do Codex. O consumidor inicial é `bbdw-checkout`, com o cenário CHK-001 e incidentes da integração nativa do Sentry. Os demais repositórios podem reutilizar a orquestração depois de implementar seu adaptador; esta versão não os habilita automaticamente.
 
 ## Uso
 
