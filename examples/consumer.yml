@@ -12,8 +12,6 @@ permissions:
   contents: read
 jobs:
   patchwork:
-    # Exemplo da política atual do bbdw-checkout. O adaptador valida novamente
-    # a identidade do iniciador, a issue, o projeto e a release do incidente.
     if: >-
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'workflow_dispatch' ||
@@ -24,11 +22,11 @@ jobs:
       contents: write
       issues: read
       pull-requests: write
-    # Para produção, substitua v1 pelo SHA completo da versão revisada.
-    uses: bbdw-gh-action/patchwork/.github/workflows/patchwork.yml@v1
+    # Patchwork v2: motor e workflow fixados na mesma revisão.
+    uses: bbdw-gh-action/patchwork/.github/workflows/patchwork.yml@v2
     with:
       issue_number: ${{ format('{0}', github.event.issue.number || inputs.issue_number) }}
-      adapter_path: scripts/agent-workflow.mjs
+      config_path: .github/patchwork.json
       node_version: '24'
       install_command: npm ci
       allow_bot_users: sentry[bot]

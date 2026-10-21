@@ -6,10 +6,10 @@ on:
         description: Número da issue validada pelo adaptador do repositório chamador
         required: true
         type: string
-      adapter_path:
-        description: Script Node confiável com os comandos prepare, prompt, export, validate e publish
+      config_path:
+        description: Configuração confiável relativa ao repositório chamador
         type: string
-        default: scripts/agent-workflow.mjs
+        default: .github/patchwork.json
       node_version:
         description: Versão do Node usada pelo adaptador e, quando aplicável, pela aplicação
         type: string
@@ -30,14 +30,14 @@ on:
       OPENAI_API_KEY:
         required: true
       SENTRY_AUTH_TOKEN:
-        required: false
+        required: true
 permissions:
   contents: read
 concurrency:
   group: patchwork-${{ github.repository }}-${{ inputs.issue_number }}
   cancel-in-progress: false
 env:
-  PATCHWORK_ADAPTER: ${{ inputs.adapter_path }}
+  PATCHWORK_CONFIG: ${{ inputs.config_path }}
 jobs:
   prepare:
     runs-on: ubuntu-latest
@@ -50,30 +50,23 @@ jobs:
       sha: ${{ steps.incident.outputs.sha }}
       issue: ${{ steps.incident.outputs.issue }}
     steps:
+      - name: Obter o motor Patchwork da revisão chamada
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: patchwork
+          persist-credentials: false
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          # Em workflow_call, github.workflow_sha identifica o workflow chamador.
           ref: ${{ github.workflow_sha }}
+          path: automation
           persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: ${{ inputs.node_version }}
-      - name: Conferir entradas
-        env:
-          ISSUE_NUMBER: ${{ inputs.issue_number }}
-        run: |
-          node --input-type=module <<'NODE'
-          import { realpathSync } from 'node:fs';
-          import { sep } from 'node:path';
-          const path = process.env.PATCHWORK_ADAPTER;
-          if (!/^[1-9][0-9]*$/.test(process.env.ISSUE_NUMBER)) throw new Error('Número de issue inválido.');
-          if (!/^[a-zA-Z0-9_.\/-]+\.mjs$/.test(path) || path.startsWith('/') || path.split('/').some(p => p === '..' || !p)) {
-            throw new Error('adapter_path deve apontar para um script .mjs dentro do repositório.');
-          }
-          if (!realpathSync(path).startsWith(realpathSync('.') + sep)) throw new Error('Adaptador fora do repositório.');
-          NODE
       - id: incident
-        run: node "./$PATCHWORK_ADAPTER" prepare
+        run: node patchwork/scripts/engine.mjs prepare
         env:
           GH_TOKEN: ${{ github.token }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
@@ -100,6 +93,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Obter o motor Patchwork da revisão chamada
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: patchwork
+          persist-credentials: false
       - name: Conferir credencial do agente
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -133,19 +133,31 @@ jobs:
         with:
           name: incident
           path: ${{ runner.temp }}
-      - run: node "automation/$PATCHWORK_ADAPTER" prompt
+      - name: Instalar MCP oficial do Sentry pelo lockfile
+        run: npm ci --ignore-scripts --omit=dev
+        working-directory: patchwork
+      - name: Preparar skills e MCP confiáveis
+        run: node patchwork/scripts/context.mjs
+      - run: node patchwork/scripts/engine.mjs prompt
+      - name: Conferir credencial do MCP
+        env:
+          SENTRY_ACCESS_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: test -n "$SENTRY_ACCESS_TOKEN" || { echo "::error::Configure SENTRY_AUTH_TOKEN para o MCP."; exit 1; }
       - name: Analisar e corrigir com Codex
+        env:
+          SENTRY_ACCESS_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         uses: openai/codex-action@c05cfd74ad95c626cdf05c6685e62becc3bf7813
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           working-directory: app
+          codex-home: ${{ runner.temp }}/patchwork-codex
           permission-profile: ":workspace"
           safety-strategy: drop-sudo
           allow-bot-users: ${{ inputs.allow_bot_users }}
           prompt-file: ${{ runner.temp }}/prompt.md
           output-file: ${{ runner.temp }}/report.md
       # Após o agente, só exportar a proposta; executar código em outro runner.
-      - run: node "automation/$PATCHWORK_ADAPTER" export
+      - run: node patchwork/scripts/engine.mjs export
         env:
           BASE_SHA: ${{ needs.prepare.outputs.sha }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -155,12 +167,20 @@ jobs:
           path: |
             ${{ runner.temp }}/candidate.patch
             ${{ runner.temp }}/report.md
+            ${{ runner.temp }}/agent-context.json
           retention-days: 7
   validate:
     needs: [prepare, propose]
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
+      - name: Obter o motor Patchwork da revisão chamada
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: patchwork
+          persist-credentials: false
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ github.workflow_sha }}
@@ -186,7 +206,7 @@ jobs:
       - name: Instalar dependências da aplicação
         run: ${{ inputs.install_command }}
         working-directory: app
-      - run: node "automation/$PATCHWORK_ADAPTER" validate
+      - run: node patchwork/scripts/engine.mjs validate
         env:
           BASE_SHA: ${{ needs.prepare.outputs.sha }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -195,6 +215,7 @@ jobs:
           name: validation
           path: |
             ${{ runner.temp }}/validation.md
+            ${{ runner.temp }}/validation.json
             ${{ runner.temp }}/regression-before.log
           retention-days: 7
   publish:
@@ -205,6 +226,13 @@ jobs:
       contents: write
       pull-requests: write
     steps:
+      - name: Obter o motor Patchwork da revisão chamada
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: patchwork
+          persist-credentials: false
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ github.workflow_sha }}
@@ -226,7 +254,7 @@ jobs:
           name: validation
           path: ${{ runner.temp }}
       - name: Abrir PR sem executar a proposta
-        run: node "automation/$PATCHWORK_ADAPTER" publish
+        run: node patchwork/scripts/engine.mjs publish
         env:
           GH_TOKEN: ${{ github.token }}
           BASE_SHA: ${{ needs.prepare.outputs.sha }}
