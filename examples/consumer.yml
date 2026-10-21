@@ -1,0 +1,37 @@
+name: Patchwork
+on:
+  issues:
+    types: [opened]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Número da issue do incidente
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  patchwork:
+    # Exemplo da política atual do bbw-checkout. O adaptador valida novamente
+    # a identidade do iniciador, a issue, o projeto e a release do incidente.
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.actor == 'sentry[bot]' && github.event.issue.user.id == 39604003 &&
+        contains(github.event.issue.labels.*.name, 'agent:repair') &&
+        contains(github.event.issue.labels.*.name, 'sentry')))
+    permissions:
+      contents: write
+      issues: read
+      pull-requests: write
+    # Para produção, substitua v1 pelo SHA completo da versão revisada.
+    uses: bbdw-gh-action/patchwork/.github/workflows/patchwork.yml@v1
+    with:
+      issue_number: ${{ format('{0}', github.event.issue.number || inputs.issue_number) }}
+      adapter_path: scripts/agent-workflow.mjs
+      node_version: '24'
+      install_command: npm ci
+      allow_bot_users: sentry[bot]
+    secrets:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}

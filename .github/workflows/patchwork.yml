@@ -1,0 +1,233 @@
+name: Patchwork
+on:
+  workflow_call:
+    inputs:
+      issue_number:
+        description: Número da issue validada pelo adaptador do repositório chamador
+        required: true
+        type: string
+      adapter_path:
+        description: Script Node confiável com os comandos prepare, prompt, export, validate e publish
+        type: string
+        default: scripts/agent-workflow.mjs
+      node_version:
+        description: Versão do Node usada pelo adaptador e, quando aplicável, pela aplicação
+        type: string
+        default: '24'
+      go_version_file:
+        description: Caminho relativo à aplicação; vazio desativa a instalação do Go
+        type: string
+        default: ''
+      install_command:
+        description: Comando confiável de instalação executado em app, antes do agente e da validação
+        type: string
+        default: npm ci
+      allow_bot_users:
+        description: Bots permitidos pelo Codex; o adaptador ainda deve autorizar o incidente e o iniciador
+        type: string
+        default: ''
+    secrets:
+      OPENAI_API_KEY:
+        required: true
+      SENTRY_AUTH_TOKEN:
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: patchwork-${{ github.repository }}-${{ inputs.issue_number }}
+  cancel-in-progress: false
+env:
+  PATCHWORK_ADAPTER: ${{ inputs.adapter_path }}
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    outputs:
+      sha: ${{ steps.incident.outputs.sha }}
+      issue: ${{ steps.incident.outputs.issue }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          # Em workflow_call, github.workflow_sha identifica o workflow chamador.
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ inputs.node_version }}
+      - name: Conferir entradas
+        env:
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { realpathSync } from 'node:fs';
+          import { sep } from 'node:path';
+          const path = process.env.PATCHWORK_ADAPTER;
+          if (!/^[1-9][0-9]*$/.test(process.env.ISSUE_NUMBER)) throw new Error('Número de issue inválido.');
+          if (!/^[a-zA-Z0-9_.\/-]+\.mjs$/.test(path) || path.startsWith('/') || path.split('/').some(p => p === '..' || !p)) {
+            throw new Error('adapter_path deve apontar para um script .mjs dentro do repositório.');
+          }
+          if (!realpathSync(path).startsWith(realpathSync('.') + sep)) throw new Error('Adaptador fora do repositório.');
+          NODE
+      - id: incident
+        run: node "./$PATCHWORK_ADAPTER" prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
+      - name: Conferir identidade resolvida pelo adaptador
+        env:
+          BASE_SHA: ${{ steps.incident.outputs.sha }}
+          RESOLVED_ISSUE: ${{ steps.incident.outputs.issue }}
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
+        run: |
+          node --input-type=module <<'NODE'
+          if (!/^[a-f0-9]{40}$/.test(process.env.BASE_SHA) || process.env.RESOLVED_ISSUE !== process.env.ISSUE_NUMBER) {
+            throw new Error('O adaptador deve retornar o SHA completo e o número da issue recebida.');
+          }
+          NODE
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: incident
+          path: ${{ runner.temp }}/incident.json
+          if-no-files-found: error
+          retention-days: 7
+  propose:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Conferir credencial do agente
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "::error::Configure OPENAI_API_KEY no repositório chamador e passe o secret ao Patchwork."
+            exit 1
+          fi
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: automation
+          persist-credentials: false
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          path: app
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ inputs.node_version }}
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        if: inputs.go_version_file != ''
+        with:
+          go-version-file: app/${{ inputs.go_version_file }}
+          cache: false
+      - name: Instalar dependências da aplicação
+        run: ${{ inputs.install_command }}
+        working-directory: app
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: incident
+          path: ${{ runner.temp }}
+      - run: node "automation/$PATCHWORK_ADAPTER" prompt
+      - name: Analisar e corrigir com Codex
+        uses: openai/codex-action@c05cfd74ad95c626cdf05c6685e62becc3bf7813
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          working-directory: app
+          permission-profile: ":workspace"
+          safety-strategy: drop-sudo
+          allow-bot-users: ${{ inputs.allow_bot_users }}
+          prompt-file: ${{ runner.temp }}/prompt.md
+          output-file: ${{ runner.temp }}/report.md
+      # Após o agente, só exportar a proposta; executar código em outro runner.
+      - run: node "automation/$PATCHWORK_ADAPTER" export
+        env:
+          BASE_SHA: ${{ needs.prepare.outputs.sha }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: proposal
+          path: |
+            ${{ runner.temp }}/candidate.patch
+            ${{ runner.temp }}/report.md
+          retention-days: 7
+  validate:
+    needs: [prepare, propose]
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: automation
+          persist-credentials: false
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          path: app
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ inputs.node_version }}
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+        if: inputs.go_version_file != ''
+        with:
+          go-version-file: app/${{ inputs.go_version_file }}
+          cache: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: proposal
+          path: ${{ runner.temp }}
+      - name: Instalar dependências da aplicação
+        run: ${{ inputs.install_command }}
+        working-directory: app
+      - run: node "automation/$PATCHWORK_ADAPTER" validate
+        env:
+          BASE_SHA: ${{ needs.prepare.outputs.sha }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: validation
+          path: |
+            ${{ runner.temp }}/validation.md
+            ${{ runner.temp }}/regression-before.log
+          retention-days: 7
+  publish:
+    needs: [prepare, validate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: automation
+          persist-credentials: false
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          path: app
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ inputs.node_version }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: proposal
+          path: ${{ runner.temp }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: validation
+          path: ${{ runner.temp }}
+      - name: Abrir PR sem executar a proposta
+        run: node "automation/$PATCHWORK_ADAPTER" publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ needs.prepare.outputs.sha }}
+          ISSUE_NUMBER: ${{ needs.prepare.outputs.issue }}
