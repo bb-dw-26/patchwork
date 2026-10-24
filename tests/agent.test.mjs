@@ -21,7 +21,7 @@ function fixture(t, behavior = {}) {
         rpc: {
           mcp: {
             startServer: async () => { state.calls.push('mcp'); if (behavior.mcpError) throw new Error('MCP ausente'); },
-            listConfigured: async () => ({ servers: [{ name: 'sentry', live: { status: behavior.mcpStatus ?? 'connected' } }] }),
+            listConfigured: async () => ({ servers: [{ name: 'sentry', enabled: behavior.mcpEnabled !== false, live: { status: behavior.mcpStatus ?? 'connected' } }] }),
           },
           model: { getCurrent: async () => ({ modelId: 'test-model' }) },
         },
@@ -89,6 +89,7 @@ for (const [name, behavior, pattern] of [
   ['sandbox indisponível', { sandboxWarning: true }, /limitação do sandbox/],
   ['startup falha sem vazar token', { startError: 'falhou token-test' }, /falhou \[REDACTED\]/],
   ['MCP indisponível', { mcpStatus: 'failed' }, /MCP Sentry/],
+  ['MCP desabilitado pela política', { mcpEnabled: false }, /MCP Sentry/],
   ['startup MCP falha', { mcpError: true }, /MCP ausente/],
   ['modelo falha', { sessionError: true }, /sessão Copilot falhou/],
   ['política exige humano', { managed: true }, /aprovação humana/],

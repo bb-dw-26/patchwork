@@ -121,7 +121,7 @@ export async function runAgent({ context, prompt, token, sentryToken, model = ''
     checkpoint();
     const { servers } = await session.rpc.mcp.listConfigured();
     checkpoint();
-    if (!servers.some(server => server.name === 'sentry' && server.live?.status === 'connected')) {
+    if (!servers.some(server => server.name === 'sentry' && server.enabled && server.live?.status === 'connected')) {
       throw new Error('MCP Sentry obrigatório não conectou.');
     }
     metadata.mcpConnected = true;

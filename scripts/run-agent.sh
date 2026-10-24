@@ -20,8 +20,12 @@ cleanup() {
     sudo pkill -KILL -u "$agent_user" 2>/dev/null || true
   fi
   [[ -z "$agent_pid" ]] || wait "$agent_pid" 2>/dev/null || true
+  # mktemp cria a pasta com modo 700; recuperar a posse antes de ler os artifacts.
+  sudo chown -Rh "$runner_uid:$runner_gid" "$agent_dir"
+  chmod u+rx "$agent_dir"
   for output in report.md execution.json; do
     if [[ -f "$agent_dir/$output" && ! -L "$agent_dir/$output" ]]; then
+      chmod u+r "$agent_dir/$output"
       cp -- "$agent_dir/$output" "$RUNNER_TEMP/$output"
     fi
   done
