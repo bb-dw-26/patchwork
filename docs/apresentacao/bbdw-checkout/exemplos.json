@@ -1,0 +1,23 @@
+[
+  {
+    "id": "pickup-valid",
+    "request": {
+      "customerId": "customer-pickup",
+      "fulfillment": "pickup",
+      "items": [
+        {
+          "productId": "product-standard",
+          "quantity": 2
+        }
+      ]
+    }
+  },
+  {
+    "id": "empty-cart",
+    "request": {
+      "customerId": "customer-delivery",
+      "fulfillment": "delivery",
+      "items": []
+    }
+  }
+]

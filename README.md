@@ -2,6 +2,10 @@
 
 Incidentes viram propostas de correção verificadas. Um workflow compartilhado atende `bbdw-checkout`, `bbdw-users`, `bbdw-catalog` e `bbdw-storefront`, com regras próprias para cada aplicação.
 
+## Apresentação BBDW
+
+O [roteiro da apresentação](docs/ROTEIRO.md) reúne a agenda de 50 minutos, os papéis dos aplicativos, a preparação, a avaliação e a contingência. Este repositório centraliza o [material da sessão, cenários e soluções](docs/apresentacao/README.md). Esse diretório não integra as skills do agente.
+
 ## Uso
 
 O consumidor mantém `.github/patchwork.json`, `.agents/skills/service-regression/SKILL.md` e uma chamada curta em `.github/workflows/repair.yml`. Veja [o exemplo](examples/consumer.yml).
@@ -27,6 +31,18 @@ jobs:
 Em produção, fixe o SHA completo da versão revisada. O próprio workflow usa `job.workflow_sha` e `job.workflow_repository` para obter o motor na mesma revisão. Esses contextos exigem GitHub.com e não estão disponíveis no GitHub Enterprise Server. As versões antigas permanecem nas tags existentes. A v3 substitui a Action Codex pelo Copilot SDK 1.0.26 e seu runtime 1.0.103, fixados pelo lockfile; Node 24 é mantido.
 
 O exemplo completo restringe gatilhos ao App oficial Sentry ou disparo manual autorizado. Mantenha esse filtro. O motor confere novamente autor, iniciador, labels, organização, projeto, release e duplicidade. O secret Sentry precisa ler organização, projeto e eventos. Configure os secrets no consumidor ou disponibilize secrets de organização aos consumidores. Não envie valores de credenciais em issues ou PRs.
+
+## Disparo e integração Sentry
+
+O consumidor usa `issues:opened` para issues do App oficial Sentry com labels `sentry` e `agent:repair`, ou `workflow_dispatch` iniciado por colaborador com escrita. O motor confere autor, iniciador, vínculo Sentry, projeto, release e duplicidade antes de iniciar o reparo.
+
+Para uma issue elegível, execute no checkout do aplicativo:
+
+```sh
+gh workflow run repair.yml --ref main -f issue_number=NUMERO
+```
+
+A integração GitHub do Sentry deve apontar para a organização e o repositório atuais. Exports antigos de alertas estão apenas no [histórico](docs/historico/alertas-sentry-pre-migracao/README.md); não são configuração de implantação.
 
 ## Configuração por aplicação
 
@@ -57,7 +73,7 @@ Entradas adicionais: `config_path` (padrão `.github/patchwork.json`), `node_ver
 
 Cada aplicação versiona suas skills em `.agents/skills/`. O Patchwork acrescenta [patchwork-investigation](skills/patchwork-investigation/SKILL.md), que orienta a investigação e o uso das evidências. `service-regression` descreve os contratos e testes da aplicação.
 
-Antes do agente, `scripts/context.mjs` copia as skills, AGENTS.md e configuração da revisão confiável para o checkout descartável. Isso também funciona com branches antigas que ainda não possuem as skills. O prompt manda explicitamente ler e usar as duas skills antes de editar. O relatório deve declarar as skills efetivamente lidas.
+Antes do agente, `scripts/context.mjs` copia as skills, AGENTS.md, documentação técnica e configuração da revisão confiável para o checkout descartável. A preparação retira catálogos de cenários, gabaritos e adaptadores legados de revisões antigas e recusa uma revisão confiável que ainda contenha esse material. Isso também funciona com branches antigas que ainda não possuem as skills. O prompt manda explicitamente ler e usar as duas skills antes de editar. O relatório deve declarar as skills efetivamente lidas.
 
 O MCP oficial `@sentry/mcp-server` é instalado pelo lockfile e iniciado via stdio. A sessão recebe `--organization-slug`, `--project-slug` e `--skills=inspect`. A sessão Copilot permite somente `get_sentry_resource`, `search_issues` e `search_events`, sem gateways de execução ou ferramentas de mutação. As buscas usam sintaxe Sentry explícita; o servidor não recebe uma chave de modelo para tradução de linguagem natural.
 
@@ -72,6 +88,10 @@ O contexto temporário `patchwork-copilot/context.json` contém caminhos das ski
 O PR é draft, com base definida na configuração. Sem merge ou deploy automáticos. O `GITHUB_TOKEN` não dispara outro CI de PR; a validação já ocorreu em runner separado. Para nova verificação, dispare o CI da aplicação manualmente.
 
 Os artifacts `incident`, `proposal` e `validation` duram sete dias. Se a publicação falhar depois do push, use **Re-run failed jobs** enquanto os artifacts existirem. O motor confere base, conteúdo e proposta remota, sem force-push ou duplicação de PRs.
+
+## Publicação de source maps
+
+O [upload centralizado](docs/SOURCEMAPS.md) atende checkout, users e storefront. Os aplicativos mantêm somente comandos de desenvolvimento, build e testes; o smoke integrado permanece no storefront. Os adaptadores antigos de reparo foram removidos.
 
 ## Verificação
 
@@ -106,4 +126,4 @@ O launcher Linux cria uma conta exclusiva sem sudo, dá escrita apenas ao checko
 
 Teste sem inferência: `node scripts/copilot-smoke.mjs --offline`. Para verificar token/modelo com uma resposta mínima, publique e dispare `copilot-smoke.yml`; `copilot_model` é opcional. A execução mínima não comprova o benefício de créditos ilimitados: confira a atribuição no billing.
 
-A publicação v3 aguarda escrita nos repositórios transferidos. Consulte [MIGRATION.md](MIGRATION.md) para a ordem de ativação e verificações pendentes.
+O último [registro de migração](docs/historico/migracao-2026-10-24.md) documenta as pendências observadas em 24/10/2026. Antes da ativação, conferir permissões, integração Sentry e publicação dos SHAs usados pelos consumidores. Esse registro não é uma consulta ao estado remoto atual.

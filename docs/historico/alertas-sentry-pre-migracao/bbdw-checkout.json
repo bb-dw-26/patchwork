@@ -1,0 +1,74 @@
+{
+  "name": "BBDW CHK-001 - criar issue GitHub",
+  "enabled": true,
+  "detectorIds": [
+    "10714423"
+  ],
+  "config": {
+    "frequency": 5
+  },
+  "triggers": {
+    "logicType": "any-short",
+    "conditions": [
+      {
+        "type": "first_seen_event",
+        "comparison": true,
+        "conditionResult": true
+      },
+      {
+        "type": "regression_event",
+        "comparison": true,
+        "conditionResult": true
+      }
+    ]
+  },
+  "actionFilters": [
+    {
+      "logicType": "all",
+      "conditions": [
+        {
+          "type": "tagged_event",
+          "comparison": {
+            "key": "scenario",
+            "match": "eq",
+            "value": "CHK-001"
+          },
+          "conditionResult": true
+        },
+        {
+          "type": "tagged_event",
+          "comparison": {
+            "key": "service",
+            "match": "eq",
+            "value": "bbdw-checkout"
+          },
+          "conditionResult": true
+        }
+      ],
+      "actions": [
+        {
+          "type": "github",
+          "integrationId": "546121",
+          "status": "active",
+          "config": {
+            "targetType": "specific",
+            "targetDisplay": null,
+            "targetIdentifier": null
+          },
+          "data": {
+            "additional_fields": {
+              "repo": "bbdw-gh-action/bbdw-checkout",
+              "labels": [
+                "sentry",
+                "agent:repair"
+              ],
+              "assignee": "",
+              "integration": "546121"
+            },
+            "dynamic_form_fields": []
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "service": "bbdw-storefront",
+  "status": "specified-not-implemented",
+  "scenarios": [
+    {
+      "id": "WEB-001",
+      "title": "Miniatura ausente",
+      "trigger": "Abrir o catálogo com a resposta válida que contém product-no-image e thumbnailUrl=null.",
+      "bug": "O componente chama thumbnailUrl.trim() sem tratar null.",
+      "observed": "Erro de renderização capturado pelo limite de erro e enviado ao Sentry; a listagem não é exibida normalmente.",
+      "expected": "Produto visível com placeholder acessível, preço e botão de adicionar funcionais.",
+      "fix": "Tratar miniatura ausente no componente e usar o placeholder local; preservar o restante do cartão e os produtos com imagem.",
+      "tests": [
+        "Miniatura null não quebra a renderização.",
+        "Placeholder possui texto alternativo apropriado.",
+        "Produto com imagem preserva a imagem.",
+        "Produto sem imagem pode ser adicionado ao carrinho."
+      ],
+      "presentationRole": "complementar",
+      "requiredForPresentation": false
+    },
+    {
+      "id": "WEB-002",
+      "title": "Confirmação de retirada",
+      "trigger": "Exibir o pedido pickup-confirmation, já criado com sucesso, com deliveryAddress=null.",
+      "bug": "A confirmação lê deliveryAddress.postalCode mesmo quando fulfillment=pickup.",
+      "observed": "Erro de renderização após um pedido bem-sucedido; evento no Sentry.",
+      "expected": "Confirmação mostra retirada, ID do pedido e R$ 80,00, sem campo de endereço.",
+      "fix": "Renderizar dados de endereço somente para entrega e manter a confirmação completa para retirada.",
+      "tests": [
+        "Retirada sem endereço exibe confirmação.",
+        "Entrega com endereço continua exibindo o endereço.",
+        "Renderizar a confirmação não dispara outra criação de pedido."
+      ],
+      "presentationRole": "complementar",
+      "requiredForPresentation": false
+    }
+  ],
+  "presentation": {
+    "durationMinutes": 50,
+    "primaryScenario": "CHK-001",
+    "backupScenario": "CAT-001",
+    "startWithFaultyApplication": true,
+    "workflowStartTargetMinute": 5,
+    "resultsTargetMinute": 30,
+    "requiredRepairRepository": "bbdw-checkout"
+  }
+}

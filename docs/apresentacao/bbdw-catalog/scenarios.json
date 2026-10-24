@@ -1,0 +1,48 @@
+{
+  "service": "bbdw-catalog",
+  "status": "specified-not-implemented",
+  "scenarios": [
+    {
+      "id": "CAT-001",
+      "title": "Produto sem imagem",
+      "trigger": "GET /products/product-no-image",
+      "bug": "O mapeamento calcula a miniatura com imageUrls[0], sem verificar o tamanho da slice.",
+      "observed": "Panic de índice fora dos limites, capturado pela instrumentação, e HTTP 500.",
+      "expected": "HTTP 200 com imageUrls=[] e thumbnailUrl=null.",
+      "fix": "Verificar se há imagens antes de acessar a primeira posição; representar a miniatura ausente como null no JSON.",
+      "tests": [
+        "Slice vazia retorna thumbnailUrl=null.",
+        "Slice nil também é aceita e imageUrls é serializado como [].",
+        "Uma ou mais imagens retornam a primeira miniatura.",
+        "A listagem de produtos aceita produtos sem imagens."
+      ],
+      "presentationRole": "reserva-opcional",
+      "requiredForPresentation": false
+    },
+    {
+      "id": "CAT-002",
+      "title": "Produto inexistente",
+      "trigger": "GET /products/product-missing",
+      "bug": "A busca retorna um ponteiro nil e o handler acessa seus campos.",
+      "observed": "Panic de ponteiro nil, evento no Sentry e HTTP 500.",
+      "expected": "HTTP 404 com error.code=PRODUCT_NOT_FOUND.",
+      "fix": "Tratar produto não encontrado antes de acessar o ponteiro e manter falhas internas distintas de ausência de produto.",
+      "tests": [
+        "Produto inexistente retorna 404.",
+        "Produto existente retorna o contrato completo.",
+        "A aplicação continua respondendo após a requisição inválida."
+      ],
+      "presentationRole": "complementar",
+      "requiredForPresentation": false
+    }
+  ],
+  "presentation": {
+    "durationMinutes": 50,
+    "primaryScenario": "CHK-001",
+    "backupScenario": "CAT-001",
+    "startWithFaultyApplication": true,
+    "workflowStartTargetMinute": 5,
+    "resultsTargetMinute": 30,
+    "requiredRepairRepository": "bbdw-checkout"
+  }
+}

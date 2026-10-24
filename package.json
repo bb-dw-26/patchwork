@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "sentry:upload": "node scripts/upload-sourcemaps.mjs"
   },
   "dependencies": {
     "@github/copilot-sdk": "1.0.26",
@@ -12,7 +13,8 @@
     "@sentry/mcp-server": "0.42.0"
   },
   "devDependencies": {
-    "@playwright/test": "1.64.1"
+    "@playwright/test": "1.64.1",
+    "@sentry/cli": "3.8.1"
   },
   "overrides": {
     "@modelcontextprotocol/sdk": "1.32.0",

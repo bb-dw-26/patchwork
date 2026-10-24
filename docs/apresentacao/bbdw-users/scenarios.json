@@ -1,0 +1,47 @@
+{
+  "service": "bbdw-users",
+  "status": "specified-not-implemented",
+  "scenarios": [
+    {
+      "id": "USR-001",
+      "title": "Preferências ausentes",
+      "trigger": "GET /users/customer-pickup/preferences",
+      "bug": "O serviço acessa preferences.emailNotifications quando preferences é null.",
+      "observed": "HTTP 500 e TypeError de acesso a propriedade de null.",
+      "expected": "HTTP 200 com emailNotifications=false e smsNotifications=false.",
+      "fix": "Aplicar os padrões documentados quando o objeto de preferências estiver ausente, preservando valores explícitos existentes.",
+      "tests": [
+        "Cliente sem preferências recebe ambos os valores false.",
+        "Cliente com emailNotifications=true preserva true.",
+        "Cliente inexistente continua retornando 404."
+      ],
+      "presentationRole": "complementar",
+      "requiredForPresentation": false
+    },
+    {
+      "id": "USR-002",
+      "title": "Cliente inexistente",
+      "trigger": "GET /users/customer-missing",
+      "bug": "O mapeador acessa name no resultado undefined de uma busca sem correspondência.",
+      "observed": "HTTP 500 e TypeError; uma ausência esperada vira exceção inesperada.",
+      "expected": "HTTP 404 com error.code=USER_NOT_FOUND.",
+      "fix": "Verificar o resultado da busca antes do mapeamento e produzir a resposta de domínio de cliente inexistente.",
+      "tests": [
+        "ID inexistente retorna 404 e o envelope de erro.",
+        "ID existente retorna perfil completo.",
+        "O caminho normal de 404 não gera evento de erro inesperado no Sentry."
+      ],
+      "presentationRole": "complementar",
+      "requiredForPresentation": false
+    }
+  ],
+  "presentation": {
+    "durationMinutes": 50,
+    "primaryScenario": "CHK-001",
+    "backupScenario": "CAT-001",
+    "startWithFaultyApplication": true,
+    "workflowStartTargetMinute": 5,
+    "resultsTargetMinute": 30,
+    "requiredRepairRepository": "bbdw-checkout"
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "service": "bbdw-checkout",
+  "status": "primary-implemented-awaiting-connected-rehearsal",
+  "scenarios": [
+    {
+      "id": "CHK-001",
+      "title": "Retirada sem endereço",
+      "trigger": "POST /orders com {\"customerId\":\"customer-pickup\",\"fulfillment\":\"pickup\",\"items\":[{\"productId\":\"product-standard\",\"quantity\":2}]}",
+      "bug": "O checkout acessa customer.address.postalCode antes de verificar fulfillment.",
+      "observed": "HTTP 500 e TypeError, apesar de a retirada ser válida.",
+      "expected": "HTTP 201, totalCents=8000 e deliveryAddress=null.",
+      "fix": "Condicionar a validação e o acesso ao endereço à modalidade delivery; retirada deve funcionar sem endereço.",
+      "tests": [
+        "Retirada sem endereço cria pedido de 8000 centavos.",
+        "Entrega sem endereço retorna 422 ADDRESS_REQUIRED.",
+        "Entrega com endereço continua funcionando.",
+        "Erro de dependência continua sendo tratado como 503."
+      ],
+      "presentationRole": "principal",
+      "requiredForPresentation": true,
+      "implementation": {
+        "branch": "demo/chk-001",
+        "telemetry": "local-transport-verified",
+        "agent": "codex",
+        "connectedRehearsal": "pending"
+      }
+    },
+    {
+      "id": "CHK-002",
+      "title": "Carrinho vazio",
+      "trigger": "POST /orders com {\"customerId\":\"customer-delivery\",\"fulfillment\":\"delivery\",\"items\":[]}",
+      "bug": "O cálculo usa reduce sem acumulador inicial e antes de validar o carrinho.",
+      "observed": "HTTP 500 e TypeError de redução de array vazio.",
+      "expected": "HTTP 422 com error.code=EMPTY_CART; nenhum pedido é criado.",
+      "fix": "Rejeitar o carrinho vazio antes de consultar dependências ou calcular totais. Usar acumulador adequado sem permitir pedidos vazios de valor zero.",
+      "tests": [
+        "Carrinho vazio retorna 422 e não persiste pedido.",
+        "Carrinho vazio não consulta users nem catalog.",
+        "Carrinho válido preserva cálculo em centavos e quantidades."
+      ],
+      "presentationRole": "complementar",
+      "requiredForPresentation": false
+    }
+  ],
+  "presentation": {
+    "durationMinutes": 50,
+    "primaryScenario": "CHK-001",
+    "backupScenario": "CAT-001",
+    "startWithFaultyApplication": true,
+    "workflowStartTargetMinute": 5,
+    "resultsTargetMinute": 30,
+    "requiredRepairRepository": "bbdw-checkout"
+  }
+}

@@ -10,11 +10,68 @@ function verifyTree(path) {
   if (lstatSync(path).isDirectory()) for (const child of readdirSync(path)) verifyTree(resolve(path, child));
 }
 
+// Revisões antigas podem conter material editorial removido da branch confiável.
+// Só a cópia descartável é alterada; fontes, fixtures e testes da aplicação ficam intactos.
+export function prepareDocumentation(automation, app) {
+  const trustedRoot = realpathSync(automation);
+  const appRoot = realpathSync(app);
+  function checked(root, relative) {
+    const target = resolve(root, relative);
+    if (!target.startsWith(root + sep)) throw new Error('Documentação fora do checkout.');
+    let current = root;
+    for (const part of relative.split('/')) {
+      current = resolve(current, part);
+      if (existsSync(current) && lstatSync(current).isSymbolicLink()) throw new Error('Documentação contém symlink.');
+    }
+    return target;
+  }
+  const docs = checked(trustedRoot, 'docs');
+  verifyTree(docs);
+  if (!existsSync(resolve(docs, 'SPEC.md'))) throw new Error('Especificação técnica confiável ausente.');
+  for (const name of ['FALHAS.md', 'SOLUCOES.md', 'AVALIACAO.md', 'DEMO.md', 'VERIFICACAO.md', 'ROTEIRO.md']) {
+    if (existsSync(resolve(docs, name))) throw new Error('Atualize a documentação confiável antes de iniciar o agente.');
+  }
+  const destination = checked(appRoot, 'docs');
+  if (existsSync(destination)) {
+    verifyTree(destination);
+    rmSync(destination, { recursive: true });
+  }
+  cpSync(docs, destination, { recursive: true });
+  for (const relative of ['README.md', '.github/pull_request_template.md']) {
+    const source = checked(trustedRoot, relative);
+    const target = checked(appRoot, relative);
+    if (existsSync(source)) {
+      verifyTree(source);
+      mkdirSync(dirname(target), { recursive: true });
+      cpSync(source, target);
+    } else if (existsSync(target)) rmSync(target);
+  }
+  const legacy = ['agent-workflow.mjs', 'agent-workflow.test.mjs', 'incident.mjs', 'incident.test.mjs',
+    'native-sentry.mjs', 'native-sentry.test.mjs', 'publish.test.mjs', 'sentry-to-issue.mjs', 'upload-sourcemaps.mjs'];
+  for (const relative of ['specs/scenarios.json', ...legacy.map(name => `scripts/${name}`)]) {
+    // Não remover arquivos de consumidores que ainda os utilizam.
+    if (existsSync(checked(trustedRoot, relative))) throw new Error('Material legado ainda presente na revisão confiável.');
+    const target = checked(appRoot, relative);
+    if (existsSync(target)) rmSync(target);
+  }
+  const manifest = checked(appRoot, 'package.json');
+  if (existsSync(manifest)) {
+    const pkg = JSON.parse(readFileSync(manifest, 'utf8'));
+    // Limpar comandos removidos de revisões antigas sem mudar as dependências do build.
+    if (['bbdw-checkout', 'bbdw-users', 'bbdw-storefront'].includes(pkg.name) && pkg.scripts) {
+      if (pkg.name === 'bbdw-checkout' && pkg.scripts.test) pkg.scripts.test = pkg.scripts.test.replace(/ scripts\/\*\.test\.mjs/g, '');
+      for (const name of ['sentry:bridge', 'sentry:publish', 'sentry:upload']) delete pkg.scripts[name];
+      writeFileSync(manifest, JSON.stringify(pkg, null, 2) + '\n');
+    }
+  }
+}
+
 export function prepareContext({ config, automation = 'automation', app = 'app', home, mcpRoot = packageRoot }) {
   const trustedSkills = resolve(automation, '.agents/skills');
   verifyTree(trustedSkills);
   if (!existsSync(resolve(trustedSkills, 'service-regression/SKILL.md'))) throw new Error('Skill service-regression ausente.');
   const appRoot = realpathSync(app);
+  prepareDocumentation(automation, appRoot);
   const agents = resolve(appRoot, '.agents');
   if (existsSync(agents) && lstatSync(agents).isSymbolicLink()) throw new Error('.agents fora do checkout.');
   mkdirSync(agents, { recursive: true });

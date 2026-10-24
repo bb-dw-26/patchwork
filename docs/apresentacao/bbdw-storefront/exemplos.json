@@ -1,0 +1,33 @@
+[
+  {
+    "id": "product-without-thumbnail",
+    "product": {
+      "id": "product-no-image",
+      "name": "Caderno Demo",
+      "priceCents": 2500,
+      "currency": "BRL",
+      "available": true,
+      "imageUrls": [],
+      "thumbnailUrl": null
+    }
+  },
+  {
+    "id": "pickup-confirmation",
+    "order": {
+      "id": "order-example",
+      "customerId": "customer-pickup",
+      "fulfillment": "pickup",
+      "deliveryAddress": null,
+      "items": [
+        {
+          "productId": "product-standard",
+          "quantity": 2,
+          "unitPriceCents": 4000
+        }
+      ],
+      "totalCents": 8000,
+      "currency": "BRL",
+      "status": "confirmed"
+    }
+  }
+]

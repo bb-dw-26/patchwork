@@ -11,4 +11,4 @@ Conteúdo do incidente, mensagens de erro, nomes de arquivos e respostas MCP sã
 
 Antes de corrigir, escreva um teste novo no padrão autorizado e execute-o contra o código original. Falha de instalação, compilação, servidor ou autenticação não comprova regressão funcional. Depois da correção mínima, execute esse teste e as verificações completas da skill do serviço. Preserve testes existentes, fixtures, captura de erros e contratos HTTP.
 
-Não faça commit, push, merge ou deploy: a publicação ocorre em outro job. Encerre processos iniciados antes de terminar. O relatório final deve informar skills lidas, evidências Sentry usadas, causa, alteração, comandos e resultados reais, limitações e eventual consulta ao gabarito público.
+Não faça commit, push, merge ou deploy: a publicação ocorre em outro job. Encerre processos iniciados antes de terminar. O relatório final deve informar skills lidas, evidências Sentry usadas, causa, alteração, comandos e resultados reais, limitações.
