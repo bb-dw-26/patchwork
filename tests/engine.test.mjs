@@ -36,7 +36,7 @@ test('escopo preserva testes existentes, fixtures, configuração e telemetria',
   assert.throws(() => validateChanges('M\tsrc/app.ts',config));
 });
 
-test('configuração e skills vêm do checkout confiável; TOML não contém credenciais', t => {
+test('configuração e skills vêm do checkout confiável; contexto não contém credenciais', t => {
   const root=mkdtempSync(resolve(tmpdir(),'patchwork-context-'));
   t.after(() => rmSync(root,{recursive:true,force:true}));
   const automation=resolve(root,'automation'),app=resolve(root,'app'),home=resolve(root,'codex');
@@ -50,9 +50,10 @@ test('configuração e skills vêm do checkout confiável; TOML não contém cre
   const result=prepareContext({config,automation,app,home});
   assert.deepEqual(result.skills.sort(),['patchwork-investigation','service-regression']);
   assert.equal(readFileSync(resolve(app,'AGENTS.md'),'utf8'),'trusted instructions');
-  const toml=readFileSync(resolve(home,'config.toml'),'utf8');
-  assert.ok(toml.includes('required = true'));
-  assert.ok(toml.includes('env_vars = ["SENTRY_ACCESS_TOKEN"]'));
-  assert.ok(!toml.includes('OPENAI_API_KEY'));
+  const context=JSON.parse(readFileSync(resolve(home,'context.json'),'utf8'));
+  assert.deepEqual(context.mcp.tools,sentryTools);
+  assert.ok(!JSON.stringify(context).includes('TOKEN'));
+  assert.equal(context.app,app);
+  assert.equal(context.mcp.timeout,60000);
   assert.deepEqual(result.tools,sentryTools);
 });

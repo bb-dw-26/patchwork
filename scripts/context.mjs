@@ -38,14 +38,19 @@ export function prepareContext({ config, automation = 'automation', app = 'app',
   mkdirSync(home, { recursive: true });
   const server = resolve(mcpRoot, 'node_modules/@sentry/mcp-server/dist/index.js');
   if (!existsSync(server)) throw new Error('Instale as dependências do Patchwork antes de configurar o MCP.');
-  const toml = `[mcp_servers.sentry]\ncommand = "node"\nargs = ${JSON.stringify([server, '--organization-slug', config.sentry.org, '--project-slug', config.sentry.project, '--skills=inspect', '--sentry-dsn='])}\nenv_vars = ["SENTRY_ACCESS_TOKEN"]\nenabled_tools = ${JSON.stringify(sentryTools)}\nrequired = true\nstartup_timeout_sec = 60\ntool_timeout_sec = 60\n`;
-  writeFileSync(resolve(home, 'config.toml'), toml);
+  // Persistir apenas referências. O executor injeta o secret diretamente no MCP.
+  const context = {
+    app: appRoot,
+    skillDirectories: [destination],
+    mcp: { command: process.execPath, args: [server, '--organization-slug', config.sentry.org, '--project-slug', config.sentry.project, '--skills=inspect', '--sentry-dsn='], tools: sentryTools, timeout: 60000 },
+  };
+  writeFileSync(resolve(home, 'context.json'), JSON.stringify(context, null, 2));
   return { skills: names, server: 'sentry', project: config.sentry.project, tools: sentryTools };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const config = loadConfig(process.env.PATCHWORK_CONFIG ?? '.github/patchwork.json');
-  const result = prepareContext({ config, home: resolve(process.env.RUNNER_TEMP, 'patchwork-codex') });
+  const result = prepareContext({ config, home: resolve(process.env.RUNNER_TEMP, 'patchwork-copilot') });
   writeFileSync(resolve(process.env.RUNNER_TEMP, 'agent-context.json'), JSON.stringify(result, null, 2));
   console.log(`Skills disponíveis: ${result.skills.join(', ')}. MCP sentry restrito a ${result.project}.`);
 }

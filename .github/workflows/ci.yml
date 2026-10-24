@@ -22,10 +22,11 @@ jobs:
           go-version: '1.27.3'
           cache: false
       - name: Validar workflows e exemplo
-        # actionlint 1.7.12 ainda não reconhece estes dois campos documentados
+        # actionlint 1.7.12 ainda não reconhece estes campos e a permissão Copilot
         # pelo GitHub. Os testes verificam suas posições e valores exatos.
-        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -ignore 'property "(workflow_repository|workflow_sha)" is not defined' .github/workflows/*.yml examples/consumer.yml
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -ignore 'property "(workflow_repository|workflow_sha)" is not defined' -ignore 'unknown permission scope "copilot-requests"' .github/workflows/*.yml examples/consumer.yml
       - run: npm ci --ignore-scripts
+      - run: node scripts/copilot-smoke.mjs --offline
       - run: npx playwright install --with-deps chromium
       - run: npm test
       - name: Validar fronteiras de execução

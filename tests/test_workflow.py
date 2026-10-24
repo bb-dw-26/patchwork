@@ -18,12 +18,13 @@ class WorkflowTests(unittest.TestCase):
         for name, job in JOBS.items():
             permissions = job.get('permissions', WORKFLOW['permissions'])
             writes = {key for key, value in permissions.items() if value == 'write'}
-            self.assertEqual(writes, {'contents', 'pull-requests'} if name == 'publish' else set())
+            self.assertEqual(writes, {'contents', 'pull-requests'} if name == 'publish' else {'copilot-requests'} if name == 'propose' else set())
             payload = str(job)
             if name not in ('prepare', 'propose'):
                 self.assertNotIn('secrets.SENTRY_AUTH_TOKEN', payload)
-            if name != 'propose':
-                self.assertNotIn('secrets.OPENAI_API_KEY', payload)
+            self.assertNotIn('OPENAI_API_KEY', payload)
+            if name == 'validate':
+                self.assertNotIn('github.token', payload)
 
     def test_validation_is_required_and_publish_does_not_run_proposal(self):
         self.assertEqual(JOBS['validate']['needs'], ['prepare', 'propose'])
@@ -43,10 +44,28 @@ class WorkflowTests(unittest.TestCase):
     def test_skills_and_mcp_precede_agent(self):
         steps = JOBS['propose']['steps']
         setup = next(i for i,s in enumerate(steps) if s.get('run') == 'node patchwork/scripts/context.mjs')
-        agent = next(i for i,s in enumerate(steps) if s.get('uses','').startswith('openai/codex-action@'))
+        agent = next(i for i,s in enumerate(steps) if s.get('run') == 'bash patchwork/scripts/run-agent.sh')
         self.assertLess(setup, agent)
-        self.assertEqual(steps[agent]['with']['codex-home'], '${{ runner.temp }}/patchwork-codex')
-        self.assertEqual(steps[agent]['env'], {'SENTRY_ACCESS_TOKEN':'${{ secrets.SENTRY_AUTH_TOKEN }}'})
+        self.assertEqual(steps[agent]['env'], {'SENTRY_ACCESS_TOKEN':'${{ secrets.SENTRY_AUTH_TOKEN }}',
+            'GITHUB_TOKEN':'${{ github.token }}', 'COPILOT_MODEL':'${{ inputs.copilot_model }}'})
+
+    def test_v3_contract_and_process_isolation(self):
+        interface = WORKFLOW['on']['workflow_call']
+        self.assertNotIn('OPENAI_API_KEY', interface['secrets'])
+        self.assertNotIn('allow_bot_users', interface['inputs'])
+        self.assertEqual(interface['inputs']['copilot_model']['default'], '')
+        launcher = (ROOT / 'scripts/run-agent.sh').read_text(encoding='utf-8')
+        self.assertIn('sudo -Hu "$agent_user"', launcher)
+        self.assertIn('pkill -KILL -u "$agent_user"', launcher)
+        self.assertIn('trap cleanup EXIT', launcher)
+
+    def test_example_propagates_copilot_permission_without_personal_secret(self):
+        example = yaml.load((ROOT / 'examples/consumer.yml').read_text(encoding='utf-8'), Loader=yaml.BaseLoader)
+        call = example['jobs']['patchwork']
+        self.assertEqual(call['permissions']['copilot-requests'], 'write')
+        self.assertEqual(set(call['secrets']), {'SENTRY_AUTH_TOKEN'})
+        self.assertIn('bb-dw-26/patchwork/', call['uses'])
+        self.assertTrue(call['uses'].endswith('@v3'))
 
 if __name__ == '__main__':
     unittest.main()

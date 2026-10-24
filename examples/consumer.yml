@@ -22,14 +22,13 @@ jobs:
       contents: write
       issues: read
       pull-requests: write
-    # Patchwork v2: motor e workflow fixados na mesma revisão.
-    uses: bbdw-gh-action/patchwork/.github/workflows/patchwork.yml@v2
+      copilot-requests: write
+    # Patchwork v3: motor e workflow fixados na mesma revisão.
+    uses: bb-dw-26/patchwork/.github/workflows/patchwork.yml@v3
     with:
       issue_number: ${{ format('{0}', github.event.issue.number || inputs.issue_number) }}
       config_path: .github/patchwork.json
       node_version: '24'
       install_command: npm ci
-      allow_bot_users: sentry[bot]
     secrets:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}

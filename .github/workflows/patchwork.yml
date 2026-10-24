@@ -22,13 +22,11 @@ on:
         description: Comando confiável de instalação executado em app, antes do agente e da validação
         type: string
         default: npm ci
-      allow_bot_users:
-        description: Bots permitidos pelo Codex; o adaptador ainda deve autorizar o incidente e o iniciador
+      copilot_model:
+        description: Modelo Copilot; vazio usa o padrao permitido pela organizacao
         type: string
         default: ''
     secrets:
-      OPENAI_API_KEY:
-        required: true
       SENTRY_AUTH_TOKEN:
         required: true
 permissions:
@@ -92,6 +90,9 @@ jobs:
     needs: prepare
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      copilot-requests: write
     steps:
       - name: Obter o motor Patchwork da revisão chamada
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -100,14 +101,6 @@ jobs:
           ref: ${{ job.workflow_sha }}
           path: patchwork
           persist-credentials: false
-      - name: Conferir credencial do agente
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          if [ -z "$OPENAI_API_KEY" ]; then
-            echo "::error::Configure OPENAI_API_KEY no repositório chamador e passe o secret ao Patchwork."
-            exit 1
-          fi
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ github.workflow_sha }}
@@ -133,7 +126,7 @@ jobs:
         with:
           name: incident
           path: ${{ runner.temp }}
-      - name: Instalar MCP oficial do Sentry pelo lockfile
+      - name: Instalar Copilot SDK e MCP Sentry pelo lockfile
         run: npm ci --ignore-scripts --omit=dev
         working-directory: patchwork
       - name: Preparar skills e MCP confiáveis
@@ -143,19 +136,12 @@ jobs:
         env:
           SENTRY_ACCESS_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: test -n "$SENTRY_ACCESS_TOKEN" || { echo "::error::Configure SENTRY_AUTH_TOKEN para o MCP."; exit 1; }
-      - name: Analisar e corrigir com Codex
+      - name: Analisar e corrigir com Copilot SDK
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           SENTRY_ACCESS_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-        uses: openai/codex-action@c05cfd74ad95c626cdf05c6685e62becc3bf7813
-        with:
-          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          working-directory: app
-          codex-home: ${{ runner.temp }}/patchwork-codex
-          permission-profile: ":workspace"
-          safety-strategy: drop-sudo
-          allow-bot-users: ${{ inputs.allow_bot_users }}
-          prompt-file: ${{ runner.temp }}/prompt.md
-          output-file: ${{ runner.temp }}/report.md
+          COPILOT_MODEL: ${{ inputs.copilot_model }}
+        run: bash patchwork/scripts/run-agent.sh
       # Após o agente, só exportar a proposta; executar código em outro runner.
       - run: node patchwork/scripts/engine.mjs export
         env:
@@ -168,6 +154,7 @@ jobs:
             ${{ runner.temp }}/candidate.patch
             ${{ runner.temp }}/report.md
             ${{ runner.temp }}/agent-context.json
+            ${{ runner.temp }}/execution.json
           retention-days: 7
   validate:
     needs: [prepare, propose]
