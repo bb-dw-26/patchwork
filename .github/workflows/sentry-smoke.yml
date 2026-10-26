@@ -89,6 +89,8 @@ jobs:
             --deny-tool 'shell(git push)' --deny-tool 'shell(git commit)')
           if [[ -n "${COPILOT_MODEL:-}" ]]; then args+=(--model "$COPILOT_MODEL"); fi
           # Um grupo de processos permite encerrar também comandos iniciados pelo CLI.
+          # As variáveis são expandidas pelo bash filho.
+          # shellcheck disable=SC2016
           setsid bash -c 'set -o pipefail; timeout --foreground --kill-after=5s "$PATCHWORK_TIMEOUT" copilot "$@" | tee "$PATCHWORK_DIR/response.json"' bash "${args[@]}" &
           cli_pid=$!
           wait "$cli_pid"
