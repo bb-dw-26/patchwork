@@ -278,17 +278,20 @@ export function changedFiles(
   return paths;
 }
 
-export function interpretResponse(text, context, files) {
-  let result;
-  try {
-    result = JSON.parse(
-      text.trim().replace(/^```(?:json)?\s*\n([\s\S]*?)\n```$/, "$1"),
-    );
-  } catch {
-    throw new Error(
-      "Resposta do Copilot inválida; esperado JSON com outcome e summary.",
-    );
+export function responseJson(text) {
+  // --silent ainda pode imprimir progresso antes da resposta final.
+  const lines = text.trim().split(/\r?\n/);
+  for (let start = 0; start < lines.length; start++) {
+    if (!/^(?:\{|```)/.test(lines[start].trim())) continue;
+    const candidate = lines.slice(start).join("\n").trim()
+      .replace(/^```(?:json)?\s*\n([\s\S]*?)\n```$/, "$1");
+    try { return JSON.parse(candidate); } catch { /* Tentar o próximo início. */ }
   }
+  throw new Error("Resposta do Copilot inválida; esperado JSON final com outcome e summary.");
+}
+
+export function interpretResponse(text, context, files) {
+  let result = responseJson(text);
   if (
     !["repair", "handoff", "noop"].includes(result?.outcome) ||
     typeof result.summary !== "string" ||
@@ -506,7 +509,7 @@ export async function main(command, env = process.env) {
     );
     summary(result.summary);
   } else if (command === "smoke-result") {
-    const result = readJson(resolve(env.PATCHWORK_DIR, "response.json"));
+    const result = responseJson(readFileSync(resolve(env.PATCHWORK_DIR, "response.json"), "utf8"));
     if (result.outcome !== "smoke" || result.connected !== true)
       throw new Error(
         "O Copilot não informou consulta Sentry concluída. Consulte o log.",

@@ -51,6 +51,9 @@ test('encaminhamento aceita apenas App e origem permitidos; formato antigo não 
 
 test('resposta pequena diferencia correção, encaminhamento e ausência de alterações', () => {
   assert.equal(interpretResponse(JSON.stringify(repair), context, ['app.js']).outcome, 'repair');
+  assert.equal(interpretResponse(`Execução direcionada apenas do arquivo de teste de endereços.\n\n${JSON.stringify(repair)}\n`, context, ['app.js']).outcome, 'repair');
+  assert.equal(interpretResponse(`Consultando Sentry.\n\n\`\`\`json\n${JSON.stringify(repair, null, 2)}\n\`\`\``, context, ['app.js']).outcome, 'repair');
+  assert.throws(() => interpretResponse(`${JSON.stringify(repair)}\nresposta interrompida`, context, ['app.js']), /inválida/);
   assert.equal(interpretResponse(JSON.stringify(repair), context, []).outcome, 'noop');
   assert.equal(interpretResponse(JSON.stringify(handoff), context, []).destination, 'demo/target');
   assert.throws(() => interpretResponse('não é JSON', context, []), /inválida/);
