@@ -18,3 +18,5 @@ Os adaptadores antigos do checkout e seus testes foram removidos. A integração
 A mudança não reescreve commits ou branches antigos. A preparação do agente remove o material legado da cópia de trabalho e fornece a documentação técnica da revisão confiável. Material público e histórico Git não constituem uma avaliação cega isolada.
 
 Os exemplos JSON são material de apoio e não são carregados pelos apps. Evidências antigas e registros de migração estão no [histórico](../historico/README.md).
+
+[Validação da remoção de users e endereço — 26/10/2026](VALIDACAO-ENDERECO-2026-10-26.md).
