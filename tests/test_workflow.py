@@ -18,7 +18,7 @@ class WorkflowTests(unittest.TestCase):
         for name, job in JOBS.items():
             permissions = job.get('permissions', WORKFLOW['permissions'])
             writes = {key for key, value in permissions.items() if value == 'write'}
-            self.assertEqual(writes, {'contents', 'pull-requests'} if name == 'publish' else {'copilot-requests'} if name == 'propose' else set())
+            self.assertEqual(writes, {'contents', 'issues', 'pull-requests'} if name == 'publish' else {'copilot-requests'} if name == 'propose' else set())
             payload = str(job)
             if name not in ('prepare', 'propose'):
                 self.assertNotIn('secrets.SENTRY_AUTH_TOKEN', payload)

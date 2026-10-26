@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { validateIssue, incidentFromEvent, validateChanges, loadConfig } from '../scripts/engine.mjs';
+import { validateIssue, incidentFromEvent, validateChanges, validateTestAdditions, loadConfig } from '../scripts/engine.mjs';
 import { prepareContext, prepareDocumentation, sentryTools } from '../scripts/context.mjs';
 
 const config = { repository:'example/users', baseBranch:'main', runtime:'node', sentry:{ org:'example', project:'users', projectId:'123' }, sourceFiles:['src/app.ts'], testPattern:'^test/patchwork-[a-z0-9-]+\\.test\\.ts$' };
@@ -32,8 +32,15 @@ test('evento de outro projeto, serviço ou release não chega ao prompt', () => 
 
 test('escopo preserva testes existentes, fixtures, configuração e telemetria', () => {
   assert.deepEqual(validateChanges('M\tsrc/app.ts\nA\ttest/patchwork-case.test.ts',config), {sources:['src/app.ts'],tests:['test/patchwork-case.test.ts']});
-  for (const line of ['M\ttest/patchwork-old.test.ts','M\tsrc/telemetry.ts','A\t.github/workflows/x.yml','A\ttest/../x.ts','D\tsrc/app.ts']) assert.throws(() => validateChanges(`M\tsrc/app.ts\nA\ttest/patchwork-case.test.ts\n${line}`,config));
+  assert.deepEqual(validateChanges('M\tsrc/app.ts\nM\ttest/patchwork-case.test.ts',config), {sources:['src/app.ts'],tests:['test/patchwork-case.test.ts']});
+  for (const line of ['D\ttest/patchwork-old.test.ts','M\tsrc/telemetry.ts','A\t.github/workflows/x.yml','A\ttest/../x.ts','D\tsrc/app.ts']) assert.throws(() => validateChanges(`M\tsrc/app.ts\nA\ttest/patchwork-case.test.ts\n${line}`,config));
   assert.throws(() => validateChanges('M\tsrc/app.ts',config));
+});
+
+test('regressões podem acrescentar casos, mas não apagar ou substituir testes existentes', () => {
+  validateTestAdditions('12\t0\ttest/address.test.ts\n5\t0\ttest/order.test.ts');
+  for (const stat of ['12\t1\ttest/address.test.ts', '-\t-\ttest/address.test.ts', '0\t0\ttest/address.test.ts'])
+    assert.throws(() => validateTestAdditions(stat), /somente adições/);
 });
 
 test('configuração e skills vêm do checkout confiável; contexto não contém credenciais', t => {

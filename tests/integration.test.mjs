@@ -7,9 +7,12 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-function fixture(t, runtime, alreadyFixed = false) {
+function fixture(t, runtime, alreadyFixed = false, existing = false) {
   const dir = mkdtempSync(resolve(tmpdir(), 'patchwork-integration-'));
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  t.after(() => {
+    if (dirname(dir) !== resolve(tmpdir())) throw new Error('Diretório temporário inesperado.');
+    rmSync(dir, { recursive: true, force: true });
+  });
   const app = resolve(dir, 'app'), automation = resolve(dir, 'automation'), artifacts = resolve(dir, 'artifacts');
   [app, automation, artifacts].forEach(p => mkdirSync(p));
   const put = (name, text) => { const p = resolve(app, name); mkdirSync(dirname(p), { recursive: true }); writeFileSync(p, text); };
@@ -37,15 +40,24 @@ for (const dir of ['src','test']) { mkdirSync('dist/'+dir,{recursive:true}); if 
     regression="import {test,expect} from '@playwright/test'; import {markup} from '../src/answer'; test('render',async({page})=>{await page.setContent(markup); await expect(page.locator('h1')).toHaveText('correct',{timeout:300});});\n";
   }
   put(source, alreadyFixed ? fixed : broken);
+  if (existing) put(testPath, '// suíte existente preservada\n');
   git(['init','-b','main']); git(['config','core.autocrlf','false']); git(['config','user.name','Patchwork test']); git(['config','user.email','test@example.invalid']);
   git(['add','.']); git(['commit','-m','fixture']); const sha=git(['rev-parse','HEAD']);
-  put(source, alreadyFixed ? fixed+'\n' : fixed); put(testPath,regression);
+  put(source, alreadyFixed ? fixed+'\n' : fixed); put(testPath,(existing ? '// suíte existente preservada\n' : '')+regression);
   git(['add','.']);
   writeFileSync(resolve(artifacts,'candidate.patch'),execFileSync('git',['diff','--cached','--binary'],{cwd:app}));
   git(['reset','--hard','HEAD']);
   writeFileSync(resolve(automation,'config.json'),JSON.stringify({ repository:'example/answer',baseBranch:'main',runtime,sentry:{org:'example',project:'answer',projectId:'123'},sourceFiles:[source],testPattern:'^'+testPath.replaceAll('.','\\.')+'$' }));
   return { dir, artifacts, sha };
 }
+
+test('regressão acrescentada à suíte existente falha antes e passa depois', t => {
+  const f = fixture(t, 'node', false, true);
+  const result = spawnSync(process.execPath, [resolve(root,'scripts/engine.mjs'),'validate'], {
+    cwd:f.dir, env:{...process.env,NODE_TEST_CONTEXT:undefined,PATCHWORK_CONFIG:'config.json',RUNNER_TEMP:f.artifacts,BASE_SHA:f.sha}, encoding:'utf8', timeout:30000 });
+  assert.equal(result.status, 0, result.stdout+'\n'+result.stderr);
+  assert.equal(JSON.parse(readFileSync(resolve(f.artifacts,'validation.json'),'utf8')).passed, true);
+});
 
 for (const runtime of ['node','go','playwright']) {
   test(`${runtime}: regressão real falha antes e passa depois`, { skip: runtime === 'go' && process.platform === 'win32' ? 'Go -race requer compilador C; coberto pelo CI Linux.' : false }, t => {

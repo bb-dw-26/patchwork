@@ -15,7 +15,7 @@ jobs:
   patchwork:
     permissions:
       contents: write
-      issues: read
+      issues: write
       pull-requests: write
       copilot-requests: write
     uses: bbdw-gh-action/patchwork/.github/workflows/patchwork.yml@v3
@@ -53,7 +53,7 @@ A integração GitHub do Sentry deve apontar para a organização e o repositór
   "runtime": "node",
   "sentry": { "org": "bbdw-workshop-jj", "project": "bbdw-checkout", "projectId": "4512294853869568" },
   "sourceFiles": ["src/modules/orders/services/orders.service.ts"],
-  "testPattern": "^src/modules/orders/services/patchwork-[a-z0-9-]+\\.test\\.ts$"
+  "testPattern": "^src/modules/orders/services/[a-z0-9.-]+\\.test\\.ts$"
 }
 ```
 
@@ -62,10 +62,10 @@ A release do evento deve ser o SHA completo do HEAD da branch autorizada e a tag
 | Runtime | Instalação no chamador | Validação |
 | --- | --- | --- |
 | `node` | `npm ci` | Build, testes novos compilados via node:test antes, `npm run check` depois |
-| `go` | `go_version_file: go.mod`, `install_command: go mod download` | Compilação dos testes, funções `TestPatchwork*` antes; gofmt, vet, testes com race e build depois |
+| `go` | `go_version_file: go.mod`, `install_command: go mod download` | Compilação dos testes, funções `Test*` dos arquivos alterados antes; gofmt, vet, testes com race e build depois |
 | `playwright` | `npm ci` e `npx playwright install --with-deps chromium` | Tipos e descoberta, testes novos antes, `npm run check` depois |
 
-O código de produção autorizado deve existir; apenas modificações nesses arquivos e adições de testes são publicáveis. Testes existentes, dependências, telemetria, configuração e fixtures permanecem fora do patch. A validação exige falha funcional anterior; erro de compilação ou falha global de infraestrutura Playwright não contam. O publicador compara a árvore do patch com a árvore aprovada pelo validador.
+O código de produção autorizado deve existir; apenas modificações nesses arquivos e adições de regressões são publicáveis. Prefira acrescentar casos às suítes existentes, sem remover nem reescrever suas linhas. Arquivos novos usam nomes do comportamento, sem prefixos do agente ou IDs de cenário. Dependências, telemetria, configuração e fixtures permanecem fora do patch. A validação exige falha funcional anterior; erro de compilação ou falha global de infraestrutura Playwright não contam. O publicador compara a árvore do patch com a árvore aprovada pelo validador.
 
 Entradas adicionais: `config_path` (padrão `.github/patchwork.json`), `node_version` (24), `go_version_file` (vazio), `install_command` (`npm ci`) e `copilot_model` (vazio: padrão da organização). O comando de instalação deve vir do workflow confiável, nunca do corpo de uma issue. Há uma chamada por execução; os artifacts têm nomes fixos, portanto não use matrix ou múltiplas chamadas no mesmo run.
 
@@ -85,7 +85,7 @@ O contexto temporário `patchwork-copilot/context.json` contém caminhos das ski
 
 `prepare → propose → validate → publish`, em quatro runners. O motor vem do SHA do workflow reutilizável, a política do SHA do workflow consumidor e a aplicação do SHA do incidente. Agente e validador não recebem escrita no GitHub. O validador não recebe secrets. Somente o publicador recebe escrita e nunca executa a aplicação.
 
-O PR é draft, com base definida na configuração. Sem merge ou deploy automáticos. O `GITHUB_TOKEN` não dispara outro CI de PR; a validação já ocorreu em runner separado. Para nova verificação, dispare o CI da aplicação manualmente.
+O PR é draft, com base definida na configuração. Após publicá-lo, o publicador comenta na issue um resumo de causa, correção, validação e links para PR e execução. O comentário é idempotente; uma retomada após falha não duplica o PR ou o comentário. Somente esse job recebe `issues: write`; o agente continua sem escrita no GitHub. Sem merge ou deploy automáticos. O `GITHUB_TOKEN` não dispara outro CI de PR; a validação já ocorreu em runner separado. Para nova verificação, dispare o CI da aplicação manualmente.
 
 Os artifacts `incident`, `proposal` e `validation` duram sete dias. Se a publicação falhar depois do push, use **Re-run failed jobs** enquanto os artifacts existirem. O motor confere base, conteúdo e proposta remota, sem force-push ou duplicação de PRs.
 

@@ -20,7 +20,7 @@ jobs:
         contains(github.event.issue.labels.*.name, 'sentry')))
     permissions:
       contents: write
-      issues: read
+      issues: write
       pull-requests: write
       copilot-requests: write
     # Patchwork v3: motor e workflow fixados na mesma revisão.

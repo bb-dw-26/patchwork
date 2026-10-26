@@ -175,7 +175,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     const report = await runAgent({ context, prompt: readFileSync(resolve(directory, 'prompt.md'), 'utf8'),
       token: process.env.GITHUB_TOKEN, sentryToken: process.env.SENTRY_ACCESS_TOKEN,
       model: process.env.COPILOT_MODEL ?? '', home: resolve(directory, 'home'), signal: controller.signal,
-      onMetadata: metadata => writeFileSync(resolve(directory, 'execution.json'), JSON.stringify(metadata, null, 2)) });
+      onMetadata: metadata => {
+        writeFileSync(resolve(directory, 'execution.json'), JSON.stringify(metadata, null, 2));
+        for (const call of metadata.mcpCalls) console.log(`MCP Sentry: ${call.tool}; sucesso=${call.success}`);
+      } });
     writeFileSync(resolve(directory, 'report.md'), report);
   } catch (error) {
     console.error(redact(error.message, [process.env.GITHUB_TOKEN, process.env.SENTRY_ACCESS_TOKEN]));

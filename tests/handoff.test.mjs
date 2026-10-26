@@ -76,6 +76,7 @@ test('ensaio: incidente backend → issue vinculada autenticada → PR no storef
     runGit: args => args[0] === 'write-tree' ? 'tree' : args[0] === 'diff' ? 'M\tsrc/app.ts\nA\ttests/patchwork-test.ts' : '',
     runGh: (args, input) => {
       if (args[0] === 'pr') return [];
+      if (args[1].includes('/comments') && !input) return [[]];
       if (input) { calls.push({ args, body: JSON.parse(input) }); return { html_url: 'https://github.com/demo/storefront/pull/3' }; }
       return f.runGh(args);
     } });

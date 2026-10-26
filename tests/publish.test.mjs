@@ -39,6 +39,8 @@ function fixture(t) {
   let createCalls = 0;
   let pr;
   let failCreation = true;
+  let failComment = false;
+  const comments = [];
   const prUrl = "https://github.com/example/testing/pull/1";
   const options = () => {
     const app = join(root, `app-${++copies}`);
@@ -49,6 +51,13 @@ function fixture(t) {
       runGh(args, input) {
         if (args[0] === "pr") return pr ? [{ url: prUrl }] : [];
         if (args[1].includes("/git/ref/")) return { object: { sha: baseSha } };
+        if (args[1].includes('/comments')) {
+          if (!input) return [comments];
+          if (failComment) throw new Error('Falha simulada no comentário');
+          const comment = { ...JSON.parse(input), html_url: 'https://github.com/example/testing/issues/42#issuecomment-1',
+            user: { id: 41898282, login: 'github-actions[bot]' } };
+          comments.push(comment); return comment;
+        }
         createCalls++;
         if (failCreation) throw new Error("Falha simulada depois do push");
         pr = JSON.parse(input);
@@ -58,6 +67,8 @@ function fixture(t) {
   };
   return { options, artifacts, git, remote, seed, prUrl,
     allowCreation() { failCreation = false; },
+    setCommentFailure(value) { failComment = value; },
+    comments,
     get pr() { return pr; }, get createCalls() { return createCalls; },
     head() { return git(remote, ["rev-parse", "refs/heads/agent/chk-001-issue-42"]); },
   };
@@ -75,6 +86,20 @@ test("retoma depois de push concluído sem duplicar commits ou PR", (t) => {
   assert.equal(publishProposal(f.options()), f.prUrl);
   assert.equal(f.createCalls, 2);
   assert.equal(f.head(), originalHead);
+  assert.equal(f.comments.length, 1);
+  assert.ok(f.comments[0].body.includes(f.prUrl));
+});
+
+test('retoma comentário após PR criado sem publicar duas propostas', t => {
+  const f = fixture(t); f.allowCreation(); f.setCommentFailure(true);
+  assert.throws(() => publishProposal(f.options()), /Falha simulada no comentário/);
+  const head = f.head();
+  f.setCommentFailure(false);
+  assert.equal(publishProposal(f.options()), f.prUrl);
+  assert.equal(publishProposal(f.options()), f.prUrl);
+  assert.equal(f.createCalls, 1);
+  assert.equal(f.comments.length, 1);
+  assert.equal(f.head(), head);
 });
 
 test("não sobrescreve branch remota com outra proposta", (t) => {
