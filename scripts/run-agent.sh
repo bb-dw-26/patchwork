@@ -42,8 +42,9 @@ if id "$agent_user" >/dev/null 2>&1; then
   exit 1
 fi
 sudo apt-get update -qq
-sudo apt-get install -y -qq bubblewrap slirp4netns
+sudo apt-get install -y -qq bubblewrap slirp4netns acl
 sudo useradd --create-home --shell /bin/bash "$agent_user"
+bash "$workspace/patchwork/scripts/grant-agent-access.sh" "$agent_user" "$workspace/patchwork" "$RUNNER_TEMP" "$workspace"
 cp "$RUNNER_TEMP/patchwork-copilot/context.json" "$agent_dir/context.json"
 cp "$RUNNER_TEMP/prompt.md" "$agent_dir/prompt.md"
 mkdir "$agent_dir/home"
