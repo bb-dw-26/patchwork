@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { uploadSourceMaps } from '../scripts/upload-sourcemaps.mjs';
+import { uploadSourceMaps } from '../tools/upload-sourcemaps.js';
 
 function fixture(t, name, build = true) {
   const app = mkdtempSync(resolve(tmpdir(), 'patchwork-maps-'));

@@ -8,34 +8,34 @@ permissions:
   contents: read
 jobs:
   verify:
+    name: Verificar Patchwork
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Obter código
+        uses: actions/checkout@v6
         with:
           persist-credentials: false
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      - name: Preparar Node.js
+        uses: actions/setup-node@v6
         with:
           node-version: '24'
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+      - name: Instalar dependências
+        run: npm ci --ignore-scripts
+      - name: Testar fluxo com CLI e APIs simulados
+        run: npm test
+      - name: Preparar Go para actionlint
+        uses: actions/setup-go@v6
         with:
           go-version: '1.27.3'
           cache: false
-      - name: Validar workflows e exemplo
-        # actionlint 1.7.12 ainda não reconhece estes campos e a permissão Copilot
-        # pelo GitHub. Os testes verificam suas posições e valores exatos.
-        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -ignore 'property "(workflow_repository|workflow_sha)" is not defined' -ignore 'unknown permission scope "copilot-requests"' .github/workflows/*.yml examples/consumer.yml
-      - run: npm ci --ignore-scripts
-      - run: node scripts/copilot-smoke.mjs --offline
-      - name: Verificar acesso restrito da conta do agente
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq acl
-          bash tests/launcher-access.sh
-      - run: npx playwright install --with-deps chromium
-      - run: npm test
-      - name: Validar fronteiras de execução
-        run: |
-          python3 -m venv .venv
-          .venv/bin/pip install -r tests/requirements.txt
-          .venv/bin/python -m unittest discover -s tests -v
+      - name: Validar workflows
+        # Catálogo do actionlint ainda não reconhece estes recursos do GitHub.
+        # Inputs do App: https://github.com/actions/create-github-app-token/blob/v3/action.yml
+        run: >-
+          go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          -ignore 'property "(workflow_repository|workflow_sha)" is not defined'
+          -ignore 'unknown permission scope "copilot-requests"'
+          -ignore '^missing input "app-id" which is required by action "actions/create-github-app-token@v3"\.'
+          -ignore '^input "client-id" is not defined in action "actions/create-github-app-token@v3"\.'
+          .github/workflows/*.yml examples/consumer.yml

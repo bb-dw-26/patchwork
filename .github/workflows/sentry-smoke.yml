@@ -1,4 +1,4 @@
-name: Copilot e MCP Sentry
+name: Copilot e Sentry
 on:
   workflow_call:
     inputs:
@@ -12,50 +12,93 @@ permissions:
   contents: read
 jobs:
   smoke:
-    runs-on: ubuntu-22.04
+    name: Consultar Sentry com Copilot
+    runs-on: ubuntu-latest
     timeout-minutes: 8
     permissions:
       contents: read
       copilot-requests: write
-    env:
-      PATCHWORK_CONFIG: ${{ inputs.config_path }}
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - name: Obter Patchwork
+        uses: actions/checkout@v6
         with:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
           path: patchwork
           persist-credentials: false
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - name: Obter aplicação
+        uses: actions/checkout@v6
         with:
-          ref: ${{ github.workflow_sha }}
-          path: automation
-          persist-credentials: false
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-        with:
-          ref: ${{ github.workflow_sha }}
+          ref: ${{ github.ref }}
           path: app
           persist-credentials: false
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+      - name: Preparar Node.js
+        uses: actions/setup-node@v6
         with:
           node-version: '24'
-      - run: npm ci --ignore-scripts --omit=dev
-        working-directory: patchwork
-      - name: Preparar skill e MCP do consumidor
-        run: node patchwork/scripts/sentry-smoke.mjs prepare
-      - name: Consultar Sentry pelo agente isolado
+      - name: Instalar Copilot CLI e MCP Sentry
+        run: |
+          npm install --global @github/copilot
+          npm ci --ignore-scripts --omit=dev --prefix patchwork
+      - name: Preparar consulta
+        id: context
+        run: node patchwork/scripts/patchwork.js smoke
+        env:
+          PATCHWORK_CONFIG: ${{ inputs.config_path }}
+      - name: Consultar Sentry
+        id: copilot
+        working-directory: app
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}
           SENTRY_ACCESS_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-        run: bash patchwork/scripts/run-agent.sh
-      - name: Conferir invocação da skill e consulta concluída
-        run: node patchwork/scripts/sentry-smoke.mjs verify
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+          PATCHWORK_DIR: ${{ steps.context.outputs.directory }}
+          PATCHWORK_TIMEOUT: 3m
+        run: |
+          set -euo pipefail
+          cli_pid=""
+          cleanup() {
+            code=$?
+            trap - EXIT INT TERM
+            if [[ -n "$cli_pid" ]]; then
+              kill -TERM -- "-$cli_pid" 2>/dev/null || true
+              sleep 0.2
+              kill -KILL -- "-$cli_pid" 2>/dev/null || true
+              wait "$cli_pid" 2>/dev/null || true
+            fi
+            if [[ -d "$PATCHWORK_DIR/logs" ]]; then
+              echo '::group::Diagnóstico do Copilot (debug)'
+              log_marker=$(cat /proc/sys/kernel/random/uuid)
+              echo "::stop-commands::$log_marker"
+              find "$PATCHWORK_DIR/logs" -maxdepth 1 -type f -name '*.log' -exec cat -- {} + || true
+              echo
+              echo "::$log_marker::"
+              echo '::endgroup::'
+            fi
+            exit "$code"
+          }
+          trap cleanup EXIT
+          trap 'exit 130' INT
+          trap 'exit 143' TERM
+          export COPILOT_HOME="$PATCHWORK_DIR/home"
+          export COPILOT_SKILLS_DIRS="$COPILOT_HOME/skills"
+          args=(-p "$(cat "$PATCHWORK_DIR/prompt.md")" -s --no-color --no-ask-user
+            --log-level debug --log-dir "$PATCHWORK_DIR/logs"
+            --disable-builtin-mcps --additional-mcp-config "@$PATCHWORK_DIR/mcp.json"
+            --allow-tool read --allow-tool write --allow-tool shell --allow-tool sentry
+            --deny-tool 'shell(git push)' --deny-tool 'shell(git commit)')
+          if [[ -n "${COPILOT_MODEL:-}" ]]; then args+=(--model "$COPILOT_MODEL"); fi
+          # Um grupo de processos permite encerrar também comandos iniciados pelo CLI.
+          setsid bash -c 'set -o pipefail; timeout --foreground --kill-after=5s "$PATCHWORK_TIMEOUT" copilot "$@" | tee "$PATCHWORK_DIR/response.json"' bash "${args[@]}" &
+          cli_pid=$!
+          wait "$cli_pid"
+      - name: Mostrar resultado
+        run: node patchwork/scripts/patchwork.js smoke-result
+        env:
+          PATCHWORK_DIR: ${{ steps.context.outputs.directory }}
+      - name: Limpar temporários
         if: always()
-        with:
-          name: sentry-smoke
-          path: |
-            ${{ runner.temp }}/agent-context.json
-            ${{ runner.temp }}/execution.json
-            ${{ runner.temp }}/report.md
-          retention-days: 7
+        env:
+          PATCHWORK_DIR: ${{ steps.context.outputs.directory }}
+        run: |
+          if [[ -n "$PATCHWORK_DIR" ]]; then node patchwork/scripts/patchwork.js cleanup; fi

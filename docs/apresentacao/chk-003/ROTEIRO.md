@@ -1,6 +1,6 @@
 # CHK-003 — material exclusivo do operador
 
-Não copiar este diretório, roteiro ou gabarito para `.agents`, prompts ou docs das aplicações. O motor copia somente a skill técnica; `docs/apresentacao` fica fora do checkout da aplicação e do ambiente do agente.
+Não copiar este diretório, roteiro ou gabarito para `.agents`, prompts ou docs das aplicações. O motor disponibiliza somente as skills técnicas ao CLI. O material de apresentação fica no checkout do motor, no mesmo runner, sem isolamento de leitura.
 
 ## Preparação e gabarito
 
@@ -15,10 +15,10 @@ Antes da execução remota, confira o App conforme `docs/HANDOFF.md`, o workflow
 1. Abra **Carrinho** (duas canecas, retirada). Clique para finalizar e clique novamente durante os 1,5 segundos de processamento.
 2. O backend reserva a intenção antes de aguardar, devolve 409 à concorrência e registra um único `CheckoutInProgressError`. A primeira requisição pode concluir normalmente. O evento fica no projeto Sentry do checkout e traz hashes de correlação e `client_release`, sem corpo do pedido.
 3. Aguarde a issue criada pelo App oficial Sentry com `sentry` e `agent:repair`. O agente investiga no checkout; só encaminha se as evidências justificarem responsabilidade externa.
-4. A proposta assinada cria issue vinculada no storefront. A original permanece aberta, com comentário e `agent:forwarded`. O receptor verifica assinatura, origem, evento e SHAs antes de investigar.
-5. O agente no storefront confirma a hipótese, acrescenta teste novo e propõe a correção. A validação exige falha antes e sucesso depois. O PR é rascunho no próprio storefront, sem merge/deploy automáticos.
+4. O resultado de encaminhamento cria issue vinculada no storefront. A original permanece aberta, com comentário. O receptor confere a identidade do App e a origem permitida antes de investigar; um segundo salto é recusado.
+5. O Copilot CLI no storefront confirma a hipótese, acrescenta uma regressão pertinente e aplica a correção. O workflow executa `npm run check` uma vez e abre PR em rascunho se passar, sem merge/deploy automáticos.
 
-O gabarito é restaurar exclusão mútua imediata até a requisição terminar e o botão desabilitado. Debounce isolado não basta. O teste novo criado pelo agente deve manter a requisição pendente, aguardar além de uma janela usual de debounce e repetir o clique. Exercitar também cliques no mesmo ciclo e fechamento/reabertura do painel é útil. A regressão precisa falhar antes e passar depois da correção.
+O gabarito é restaurar exclusão mútua imediata até a requisição terminar e o botão desabilitado. Debounce isolado não basta. O teste novo criado pelo agente deve manter a requisição pendente, aguardar além de uma janela usual de debounce e repetir o clique. Exercitar também cliques no mesmo ciclo e fechamento/reabertura do painel é útil. Não há etapa de prova automatizada antes/depois.
 
 Repetir depois do sucesso com a mesma chave recupera o pedido original. Alterar endereço normalizado de entrega, modalidade ou itens cria outra intenção. Pagamento demonstrativo não altera payload nem chave. O cache é limitado a 1000 intenções por instância e retém sucessos por dez minutos; reinício perde o cache. Não demonstrar garantia distribuída.
 

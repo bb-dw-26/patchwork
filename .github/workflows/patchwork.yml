@@ -3,244 +3,160 @@ on:
   workflow_call:
     inputs:
       issue_number:
-        description: Número da issue validada pelo adaptador do repositório chamador
+        description: Número da issue do incidente
         required: true
         type: string
       config_path:
-        description: Configuração confiável relativa ao repositório chamador
+        description: Configuração do consumidor
         type: string
         default: .github/patchwork.json
       node_version:
-        description: Versão do Node usada pelo adaptador e, quando aplicável, pela aplicação
         type: string
         default: '24'
       go_version_file:
-        description: Caminho relativo à aplicação; vazio desativa a instalação do Go
         type: string
         default: ''
       install_command:
-        description: Comando confiável de instalação executado em app, antes do agente e da validação
+        description: Instalação da aplicação, antes do Copilot
         type: string
         default: npm ci
+      check_command:
+        description: Verificação executada uma vez após a correção
+        type: string
+        default: npm run check
       copilot_model:
-        description: Modelo Copilot; vazio usa o padrao permitido pela organizacao
         type: string
         default: ''
     secrets:
       SENTRY_AUTH_TOKEN:
         required: true
-      PATCHWORK_APP_PRIVATE_KEY:
-        required: false
       PATCHWORK_PUBLISH_APP_PRIVATE_KEY:
         required: true
+      PATCHWORK_APP_PRIVATE_KEY:
+        required: false
 permissions:
   contents: read
 concurrency:
   group: patchwork-${{ github.repository }}-${{ inputs.issue_number }}
   cancel-in-progress: false
-env:
-  PATCHWORK_CONFIG: ${{ inputs.config_path }}
 jobs:
-  prepare:
+  repair:
+    name: Investigar, verificar e publicar
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 30
     permissions:
       contents: read
       issues: read
       pull-requests: read
-    outputs:
-      sha: ${{ steps.incident.outputs.sha }}
-      issue: ${{ steps.incident.outputs.issue }}
-      incident: ${{ steps.incident.outputs.incident }}
+      copilot-requests: write
+    env:
+      PATCHWORK_CONFIG: ${{ inputs.config_path }}
     steps:
-      - name: Obter o motor Patchwork da revisão chamada
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - name: Obter Patchwork
+        uses: actions/checkout@v6
         with:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
           path: patchwork
           persist-credentials: false
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Obter aplicação
+        uses: actions/checkout@v6
         with:
-          ref: ${{ github.workflow_sha }}
-          path: automation
+          ref: ${{ github.ref }}
+          path: app
           persist-credentials: false
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      - name: Preparar Node.js
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ inputs.node_version }}
-      - id: incident
-        run: node patchwork/scripts/engine.mjs prepare
+      - name: Instalar Copilot CLI e MCP Sentry
+        run: |
+          npm install --global @github/copilot
+          npm ci --ignore-scripts --omit=dev --prefix patchwork
+      - name: Preparar contexto
+        id: context
+        run: node patchwork/scripts/patchwork.js prepare
         env:
           GH_TOKEN: ${{ github.token }}
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           ISSUE_NUMBER: ${{ inputs.issue_number }}
           PATCHWORK_APP_ID: ${{ vars.PATCHWORK_APP_ID }}
           PATCHWORK_BOT_ID: ${{ vars.PATCHWORK_BOT_ID }}
-          PATCHWORK_APP_PUBLIC_KEY: ${{ vars.PATCHWORK_APP_PUBLIC_KEY }}
-      - name: Conferir identidade resolvida pelo adaptador
-        env:
-          BASE_SHA: ${{ steps.incident.outputs.sha }}
-          RESOLVED_ISSUE: ${{ steps.incident.outputs.issue }}
-          ISSUE_NUMBER: ${{ inputs.issue_number }}
-        run: |
-          node --input-type=module <<'NODE'
-          if (!/^[a-f0-9]{40}$/.test(process.env.BASE_SHA) || process.env.RESOLVED_ISSUE !== process.env.ISSUE_NUMBER) {
-            throw new Error('O adaptador deve retornar o SHA completo e o número da issue recebida.');
-          }
-          NODE
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: incident
-          path: ${{ runner.temp }}/incident.json
-          if-no-files-found: error
-          retention-days: 7
-  propose:
-    needs: prepare
-    outputs:
-      outcome: ${{ steps.export.outputs.outcome }}
-    # O sandbox de rede usa namespaces sem privilégio, disponíveis nesta imagem.
-    runs-on: ubuntu-22.04
-    timeout-minutes: 20
-    permissions:
-      contents: read
-      copilot-requests: write
-    steps:
-      - name: Obter o motor Patchwork da revisão chamada
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-        with:
-          repository: ${{ job.workflow_repository }}
-          ref: ${{ job.workflow_sha }}
-          path: patchwork
-          persist-credentials: false
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-        with:
-          ref: ${{ github.workflow_sha }}
-          path: automation
-          persist-credentials: false
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-        with:
-          ref: ${{ needs.prepare.outputs.sha }}
-          path: app
-          persist-credentials: false
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
-        with:
-          node-version: ${{ inputs.node_version }}
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
-        if: inputs.go_version_file != ''
+      - name: Preparar Go
+        if: steps.context.outputs.skip != 'true' && inputs.go_version_file != ''
+        uses: actions/setup-go@v6
         with:
           go-version-file: app/${{ inputs.go_version_file }}
           cache: false
-      - name: Instalar dependências da aplicação
-        run: ${{ inputs.install_command }}
+      - name: Instalar aplicação
+        if: steps.context.outputs.skip != 'true'
         working-directory: app
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: incident
-          path: ${{ runner.temp }}
-      - name: Instalar Copilot SDK e MCP Sentry pelo lockfile
-        run: npm ci --ignore-scripts --omit=dev
-        working-directory: patchwork
-      - name: Preparar skills e MCP confiáveis
-        run: node patchwork/scripts/context.mjs
-      - run: node patchwork/scripts/engine.mjs prompt
-      - name: Conferir credencial do MCP
-        env:
-          SENTRY_ACCESS_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-        run: test -n "$SENTRY_ACCESS_TOKEN" || { echo "::error::Configure SENTRY_AUTH_TOKEN para o MCP."; exit 1; }
-      - name: Analisar e corrigir com Copilot SDK
+        run: ${{ inputs.install_command }}
+      - name: Investigar e corrigir com Copilot
+        if: steps.context.outputs.skip != 'true'
+        id: copilot
+        working-directory: app
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}
           SENTRY_ACCESS_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           COPILOT_MODEL: ${{ inputs.copilot_model }}
-        run: bash patchwork/scripts/run-agent.sh
-      # Após o agente, só exportar a proposta; executar código em outro runner.
-      - id: export
-        run: node patchwork/scripts/engine.mjs export
+          PATCHWORK_DIR: ${{ steps.context.outputs.directory }}
+          PATCHWORK_TIMEOUT: 15m
+        run: |
+          set -euo pipefail
+          cli_pid=""
+          cleanup() {
+            code=$?
+            trap - EXIT INT TERM
+            if [[ -n "$cli_pid" ]]; then
+              kill -TERM -- "-$cli_pid" 2>/dev/null || true
+              sleep 0.2
+              kill -KILL -- "-$cli_pid" 2>/dev/null || true
+              wait "$cli_pid" 2>/dev/null || true
+            fi
+            if [[ -d "$PATCHWORK_DIR/logs" ]]; then
+              echo '::group::Diagnóstico do Copilot (debug)'
+              log_marker=$(cat /proc/sys/kernel/random/uuid)
+              echo "::stop-commands::$log_marker"
+              find "$PATCHWORK_DIR/logs" -maxdepth 1 -type f -name '*.log' -exec cat -- {} + || true
+              echo
+              echo "::$log_marker::"
+              echo '::endgroup::'
+            fi
+            exit "$code"
+          }
+          trap cleanup EXIT
+          trap 'exit 130' INT
+          trap 'exit 143' TERM
+          export COPILOT_HOME="$PATCHWORK_DIR/home"
+          export COPILOT_SKILLS_DIRS="$COPILOT_HOME/skills"
+          args=(-p "$(cat "$PATCHWORK_DIR/prompt.md")" -s --no-color --no-ask-user
+            --log-level debug --log-dir "$PATCHWORK_DIR/logs"
+            --disable-builtin-mcps --additional-mcp-config "@$PATCHWORK_DIR/mcp.json"
+            --allow-tool read --allow-tool write --allow-tool shell --allow-tool sentry
+            --deny-tool 'shell(git push)' --deny-tool 'shell(git commit)')
+          if [[ -n "${COPILOT_MODEL:-}" ]]; then args+=(--model "$COPILOT_MODEL"); fi
+          # Um grupo de processos permite encerrar também comandos iniciados pelo CLI.
+          setsid bash -c 'set -o pipefail; timeout --foreground --kill-after=5s "$PATCHWORK_TIMEOUT" copilot "$@" | tee "$PATCHWORK_DIR/response.json"' bash "${args[@]}" &
+          cli_pid=$!
+          wait "$cli_pid"
+      - name: Ler resultado
+        if: steps.context.outputs.skip != 'true'
+        id: result
+        run: node patchwork/scripts/patchwork.js result
         env:
-          BASE_SHA: ${{ needs.prepare.outputs.sha }}
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: always()
-        with:
-          name: proposal
-          path: |
-            ${{ runner.temp }}/candidate.patch
-            ${{ runner.temp }}/handoff.json
-            ${{ runner.temp }}/report.md
-            ${{ runner.temp }}/agent-context.json
-            ${{ runner.temp }}/execution.json
-          retention-days: 7
-  validate:
-    needs: [prepare, propose]
-    if: needs.propose.outputs.outcome == 'repair'
-    runs-on: ubuntu-latest
-    timeout-minutes: 8
-    steps:
-      - name: Obter o motor Patchwork da revisão chamada
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-        with:
-          repository: ${{ job.workflow_repository }}
-          ref: ${{ job.workflow_sha }}
-          path: patchwork
-          persist-credentials: false
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-        with:
-          ref: ${{ github.workflow_sha }}
-          path: automation
-          persist-credentials: false
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-        with:
-          ref: ${{ needs.prepare.outputs.sha }}
-          path: app
-          persist-credentials: false
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
-        with:
-          node-version: ${{ inputs.node_version }}
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
-        if: inputs.go_version_file != ''
-        with:
-          go-version-file: app/${{ inputs.go_version_file }}
-          cache: false
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        with:
-          name: proposal
-          path: ${{ runner.temp }}
-      - name: Instalar dependências da aplicação
-        run: ${{ inputs.install_command }}
+          PATCHWORK_CONTEXT: ${{ steps.context.outputs.context }}
+          PATCHWORK_DIR: ${{ steps.context.outputs.directory }}
+      - name: Verificar aplicação
+        if: steps.result.outputs.outcome == 'repair'
+        id: check
+        timeout-minutes: 8
         working-directory: app
-      - run: node patchwork/scripts/engine.mjs validate
-        env:
-          BASE_SHA: ${{ needs.prepare.outputs.sha }}
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: always()
-        with:
-          name: validation
-          path: |
-            ${{ runner.temp }}/validation.md
-            ${{ runner.temp }}/validation.json
-            ${{ runner.temp }}/regression-before.log
-          retention-days: 7
-  publish:
-    needs: [prepare, validate]
-    runs-on: ubuntu-latest
-    timeout-minutes: 3
-    permissions:
-      contents: read
-    steps:
-      - name: Obter o motor Patchwork da revisão chamada
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-        with:
-          repository: ${{ job.workflow_repository }}
-          ref: ${{ job.workflow_sha }}
-          path: patchwork
-          persist-credentials: false
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-        with:
-          ref: ${{ github.workflow_sha }}
-          path: automation
-          persist-credentials: false
-      - name: Emitir token do App somente para este repositório
+        run: ${{ inputs.check_command }}
+      - name: Autorizar publicação do PR
+        if: steps.result.outputs.outcome == 'repair' && steps.check.outcome == 'success'
         id: publisher
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3
+        uses: actions/create-github-app-token@v3
         with:
           client-id: ${{ vars.PATCHWORK_PUBLISH_APP_CLIENT_ID }}
           private-key: ${{ secrets.PATCHWORK_PUBLISH_APP_PRIVATE_KEY }}
@@ -249,72 +165,50 @@ jobs:
           permission-contents: write
           permission-issues: write
           permission-pull-requests: write
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-        with:
-          ref: ${{ needs.prepare.outputs.sha }}
-          path: app
-          token: ${{ steps.publisher.outputs.token }}
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
-        with:
-          node-version: ${{ inputs.node_version }}
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        with:
-          name: proposal
-          path: ${{ runner.temp }}
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        with:
-          name: validation
-          path: ${{ runner.temp }}
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        with:
-          name: incident
-          path: ${{ runner.temp }}
-      - name: Abrir PR sem executar a proposta
-        run: node patchwork/scripts/engine.mjs publish
+      - name: Abrir PR em rascunho
+        if: steps.result.outputs.outcome == 'repair' && steps.check.outcome == 'success'
+        run: node patchwork/scripts/patchwork.js publish
         env:
           GH_TOKEN: ${{ steps.publisher.outputs.token }}
-          PATCHWORK_PUBLISH_APP_SLUG: ${{ steps.publisher.outputs.app-slug }}
-          BASE_SHA: ${{ needs.prepare.outputs.sha }}
-          ISSUE_NUMBER: ${{ needs.prepare.outputs.issue }}
-  handoff:
-    needs: [prepare, propose]
-    if: needs.propose.outputs.outcome == 'handoff'
-    runs-on: ubuntu-latest
-    timeout-minutes: 3
-    concurrency:
-      group: handoff-${{ github.repository }}-${{ needs.prepare.outputs.incident }}-${{ needs.prepare.outputs.sha }}
-      cancel-in-progress: false
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+          PATCHWORK_APP_SLUG: ${{ steps.publisher.outputs.app-slug }}
+          PATCHWORK_CHECK_STATUS: ${{ steps.check.outcome }}
+          PATCHWORK_CHECK_COMMAND: ${{ inputs.check_command }}
+          PATCHWORK_CONTEXT: ${{ steps.context.outputs.context }}
+          PATCHWORK_RESULT: ${{ steps.result.outputs.result }}
+      - name: Autorizar encaminhamento
+        if: steps.result.outputs.outcome == 'handoff'
+        id: forwarder
+        uses: actions/create-github-app-token@v3
         with:
-          repository: ${{ job.workflow_repository }}
-          ref: ${{ job.workflow_sha }}
-          path: patchwork
-          persist-credentials: false
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-        with:
-          ref: ${{ github.workflow_sha }}
-          path: automation
-          persist-credentials: false
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
-        with:
-          node-version: ${{ inputs.node_version }}
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        with:
-          name: incident
-          path: ${{ runner.temp }}
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        with:
-          name: proposal
-          path: ${{ runner.temp }}
-      - name: Validar e publicar issue vinculada sem executar a proposta
-        run: node patchwork/scripts/engine.mjs handoff
+          app-id: ${{ vars.PATCHWORK_APP_ID }}
+          private-key: ${{ secrets.PATCHWORK_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ steps.result.outputs.repositories }}
+          permission-issues: write
+      - name: Criar issue vinculada
+        if: steps.result.outputs.outcome == 'handoff'
+        run: node patchwork/scripts/patchwork.js handoff
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.forwarder.outputs.token }}
+          PATCHWORK_APP_SLUG: ${{ steps.forwarder.outputs.app-slug }}
           PATCHWORK_APP_ID: ${{ vars.PATCHWORK_APP_ID }}
           PATCHWORK_BOT_ID: ${{ vars.PATCHWORK_BOT_ID }}
-          PATCHWORK_INSTALLATION_ID: ${{ vars.PATCHWORK_INSTALLATION_ID }}
-          PATCHWORK_APP_PUBLIC_KEY: ${{ vars.PATCHWORK_APP_PUBLIC_KEY }}
-          PATCHWORK_APP_PRIVATE_KEY: ${{ secrets.PATCHWORK_APP_PRIVATE_KEY }}
+          PATCHWORK_CONTEXT: ${{ steps.context.outputs.context }}
+          PATCHWORK_RESULT: ${{ steps.result.outputs.result }}
+      - name: Encerrar execução
+        if: always()
+        env:
+          PATCHWORK_DIR: ${{ steps.context.outputs.directory }}
+          RESULT: ${{ job.status }}
+          CHECK_STATUS: ${{ steps.check.outcome }}
+          CHECK_COMMAND: ${{ inputs.check_command }}
+        run: |
+          if [[ -n "$PATCHWORK_DIR" ]]; then node patchwork/scripts/patchwork.js cleanup; fi
+          if [[ "$CHECK_STATUS" == success ]]; then
+            printf '\nVerificação aprovada:\n```sh\n%s\n```\n' "$CHECK_COMMAND" >> "$GITHUB_STEP_SUMMARY"
+          elif [[ "$CHECK_STATUS" == failure ]]; then
+            printf '\nVerificação reprovada; publicação impedida:\n```sh\n%s\n```\n' "$CHECK_COMMAND" >> "$GITHUB_STEP_SUMMARY"
+          else
+            printf '\nVerificação da aplicação não executada.\n' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          printf '\nResultado da execução: %s\n' "$RESULT" >> "$GITHUB_STEP_SUMMARY"

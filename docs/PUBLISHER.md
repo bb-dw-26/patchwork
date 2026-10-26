@@ -1,13 +1,15 @@
 # GitHub App publicador
 
-O App privado `bbdw-patchwork-publisher`, da organização `bb-dw-26`, publica branches, PRs e comentários nos repositórios `bbdw-checkout`, `bbdw-catalog` e `bbdw-storefront`.
+O App `bbdw-patchwork-publisher` publica branches, PRs e comentários em checkout, catalog e storefront. Suas permissões são Contents, Pull requests e Issues com leitura/escrita, além de Metadata: read. O App de encaminhamento continua separado e restrito a Issues.
 
-Permissões de repositório: **Contents**, **Pull requests** e **Issues** com leitura e escrita; Metadata com leitura. Instalação apenas nos três aplicativos, sem webhooks, OAuth de usuário, acesso a Actions, secrets ou edição de workflows. O App de encaminhamento entre repositórios continua separado e restrito a Issues.
+Cada consumidor mantém `PATCHWORK_PUBLISH_APP_CLIENT_ID` e o secret `PATCHWORK_PUBLISH_APP_PRIVATE_KEY`. Nunca versionar a chave. Não há mudança nessas credenciais.
 
-Cada consumidor configura a variável `PATCHWORK_PUBLISH_APP_CLIENT_ID` e o secret `PATCHWORK_PUBLISH_APP_PRIVATE_KEY`, com a chave PEM do App. Nunca versionar a chave. Para rotação, gerar uma nova chave, atualizar os três secrets, validar a emissão do token e revogar a chave anterior.
+Após o CLI e uma execução aprovada de `check_command`, `actions/create-github-app-token@v3` emite um token para o repositório atual. O step de publicação faz commit e push da correção, abre um PR draft e comenta a issue com um resumo curto. A action revoga o token ao encerrar o job.
 
-Somente `publish` usa esses dados, depois da validação independente. `actions/create-github-app-token` está fixado por SHA e emite um token limitado ao repositório chamador e às três permissões. O checkout usa o mesmo token para push; a API usa-o para abrir o PR e comentar. A action revoga o token ao encerrar o job, inclusive em falha. Agente e validador não recebem a chave nem esse token. O Copilot continua autenticado pelo `GITHUB_TOKEN`.
+O Copilot usa `GITHUB_TOKEN` e não recebe o token nem a chave do App no seu step. Todos os steps compartilham o mesmo runner descartável; essa separação temporal não é isolamento entre processos ou máquinas.
 
-PRs publicados pelo App disparam o CI sem a aprovação especial exigida de PRs criados com `GITHUB_TOKEN`. Isso não aprova nem faz merge do PR. Regras de proteção e revisão permanecem aplicáveis.
+Uma branch por issue e a busca de PRs existentes evitam duplicação. Não se faz force-push. Se o push tiver ocorrido e a abertura do PR falhar, revise a branch existente antes de repetir a publicação. Não há comparação de árvores nem pacote de evidências para retomar jobs.
 
-Referências: [tokens de instalação](https://github.com/actions/create-github-app-token) e [comportamento de eventos do GITHUB_TOKEN](https://docs.github.com/en/actions/concepts/security/github_token#when-github_token-triggers-workflow-runs).
+PRs criados pelo App disparam o CI. A correção continua dependendo de revisão humana; não há merge ou deploy automático.
+
+Referências: [action de token](https://github.com/actions/create-github-app-token) e [eventos disparados por tokens](https://docs.github.com/en/actions/concepts/security/github_token#when-github_token-triggers-workflow-runs).

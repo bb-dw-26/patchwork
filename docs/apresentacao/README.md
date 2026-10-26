@@ -15,8 +15,8 @@ Roteiros, cenários planejados, causas, soluções e registros de ensaio ficam s
 
 Os adaptadores antigos do checkout e seus testes foram removidos. A integração nativa Sentry → GitHub e o motor atual do Patchwork substituem essa automação.
 
-A mudança não reescreve commits ou branches antigos. A preparação do agente remove o material legado da cópia de trabalho e fornece a documentação técnica da revisão confiável. Material público e histórico Git não constituem uma avaliação cega isolada.
+A mudança não reescreve commits ou branches antigos. O Copilot usa a documentação técnica do checkout atual e as skills disponibilizadas pelo workflow. O material da apresentação não é fornecido no prompt, mas o motor e a aplicação compartilham o runner; não existe isolamento de leitura ou avaliação cega.
 
-Os exemplos JSON são material de apoio e não são carregados pelos apps. Evidências antigas e registros de migração estão no [histórico](../historico/README.md).
+Os exemplos JSON são material de apoio e não são carregados pelos apps. O antigo DEMO.md de CHK-001 e os registros de validação descrevem a arquitetura da época; use os roteiros de CHK-003 e CHK-004 para o fluxo atual. Evidências antigas e registros de migração estão no [histórico](../historico/README.md).
 
 [Validação da remoção de users e endereço — 26/10/2026](VALIDACAO-ENDERECO-2026-10-26.md).

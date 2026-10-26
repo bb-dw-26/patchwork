@@ -12,6 +12,7 @@ permissions:
   contents: read
 jobs:
   patchwork:
+    name: Reparar incidente
     if: >-
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'workflow_dispatch' ||
@@ -23,13 +24,14 @@ jobs:
       issues: read
       pull-requests: read
       copilot-requests: write
-    # Patchwork v3: motor e workflow fixados na mesma revisão.
-    uses: bb-dw-26/patchwork/.github/workflows/patchwork.yml@v3
+    # Workshop: acompanha o Patchwork publicado na main.
+    uses: bb-dw-26/patchwork/.github/workflows/patchwork.yml@main
     with:
       issue_number: ${{ format('{0}', github.event.issue.number || inputs.issue_number) }}
       config_path: .github/patchwork.json
       node_version: '24'
       install_command: npm ci
+      check_command: npm run check
     secrets:
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
       PATCHWORK_PUBLISH_APP_PRIVATE_KEY: ${{ secrets.PATCHWORK_PUBLISH_APP_PRIVATE_KEY }}
