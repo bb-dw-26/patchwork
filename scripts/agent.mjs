@@ -93,7 +93,8 @@ export async function runAgent({ context, prompt, token, sentryToken, model = ''
   timer = setTimeout(() => fail(new Error('Tempo limite do Copilot excedido.')), timeoutMs);
   const secrets = [token, sentryToken];
   const metadata = { agent: 'copilot-sdk', sdkVersion: '1.0.26', requestedModel: model || null,
-    model: null, modelsUsed: [], mcpConnected: false, toolsUsed: [], skillsUsed: [] };
+    model: null, modelsUsed: [], mcpConnected: false, toolsUsed: [], mcpCalls: [], skillsUsed: [] };
+  const mcpCalls = new Map();
   const onEvent = event => {
     if (event.type === 'session.error') fail(new Error('A sessão Copilot falhou; verifique autenticação, política e modelo.'));
     if (event.type === 'session.warning' && event.data.warningType === 'sandbox') {
@@ -103,6 +104,13 @@ export async function runAgent({ context, prompt, token, sentryToken, model = ''
     if (event.type === 'tool.execution_start') {
       const name = event.data.toolName;
       if (typeof name === 'string' && !metadata.toolsUsed.includes(name)) metadata.toolsUsed.push(name);
+      if (event.data.mcpServerName === 'sentry' && sentryTools.includes(event.data.mcpToolName)) {
+        mcpCalls.set(event.data.toolCallId, event.data.mcpToolName);
+      }
+    }
+    if (event.type === 'tool.execution_complete' && mcpCalls.has(event.data.toolCallId)) {
+      metadata.mcpCalls.push({ tool: mcpCalls.get(event.data.toolCallId), success: event.data.success === true });
+      mcpCalls.delete(event.data.toolCallId);
     }
     if (event.type === 'skill.invoked' && typeof event.data.name === 'string') metadata.skillsUsed.push(event.data.name);
   };

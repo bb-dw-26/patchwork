@@ -79,5 +79,18 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn('bb-dw-26/patchwork/', call['uses'])
         self.assertTrue(call['uses'].endswith('@v3'))
 
+    def test_sentry_smoke_uses_isolated_agent_and_has_no_publication_permissions(self):
+        workflow = yaml.load((ROOT / '.github/workflows/sentry-smoke.yml').read_text(encoding='utf-8'), Loader=yaml.BaseLoader)
+        self.assertEqual(set(workflow['on']), {'workflow_call'})
+        job = workflow['jobs']['smoke']
+        self.assertEqual(job['permissions'], {'contents': 'read', 'copilot-requests': 'write'})
+        commands = [step['run'] for step in job['steps'] if 'run' in step]
+        self.assertEqual(commands, ['npm ci --ignore-scripts --omit=dev',
+            'node patchwork/scripts/sentry-smoke.mjs prepare', 'bash patchwork/scripts/run-agent.sh',
+            'node patchwork/scripts/sentry-smoke.mjs verify'])
+        for step in job['steps']:
+            if step.get('uses', '').startswith('actions/checkout@'):
+                self.assertEqual(step['with']['persist-credentials'], 'false')
+
 if __name__ == '__main__':
     unittest.main()

@@ -50,7 +50,8 @@ test('configuração e skills vêm do checkout confiável; contexto não contém
   writeFileSync(resolve(root,'outside.json'),JSON.stringify(config));
   assert.throws(() => loadConfig('../outside.json',automation));
   const result=prepareContext({config,automation,app,home});
-  assert.deepEqual(result.skills.sort(),['patchwork-investigation','service-regression']);
+  assert.deepEqual(result.skills.sort(),['patchwork-investigation','patchwork-sentry','service-regression']);
+  assert.equal(readFileSync(resolve(app,'.agents/skills/patchwork-sentry/SKILL.md'),'utf8'), readFileSync(new URL('../skills/patchwork-sentry/SKILL.md',import.meta.url),'utf8'));
   assert.equal(readFileSync(resolve(app,'AGENTS.md'),'utf8'),'trusted instructions');
   const context=JSON.parse(readFileSync(resolve(home,'context.json'),'utf8'));
   assert.deepEqual(context.mcp.tools,sentryTools);
@@ -60,7 +61,7 @@ test('configuração e skills vêm do checkout confiável; contexto não contém
   assert.deepEqual(result.tools,sentryTools);
   const routed = prepareContext({ config: { ...config, handoff: { targets: [], sources: [] } }, automation, app, home,
     incident: { sourceSentry: { org: 'example', project: 'checkout', projectId: '456' } } });
-  assert.deepEqual(routed.skills.sort(), ['patchwork-handoff','patchwork-investigation','service-regression']);
+  assert.deepEqual(routed.skills.sort(), ['patchwork-handoff','patchwork-investigation','patchwork-sentry','service-regression']);
   assert.equal(routed.project, 'checkout');
   const routedContext = JSON.parse(readFileSync(resolve(home, 'context.json'), 'utf8'));
   assert.ok(routedContext.mcp.args.includes('checkout'));

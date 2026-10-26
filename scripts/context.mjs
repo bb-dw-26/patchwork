@@ -84,6 +84,7 @@ export function prepareContext({ config, automation = 'automation', app = 'app',
   }
   cpSync(trustedSkills, destination, { recursive: true });
   cpSync(resolve(packageRoot, 'skills/patchwork-investigation'), resolve(destination, 'patchwork-investigation'), { recursive: true });
+  cpSync(resolve(packageRoot, 'skills/patchwork-sentry'), resolve(destination, 'patchwork-sentry'), { recursive: true });
   if (config.handoff) cpSync(resolve(packageRoot, 'skills/patchwork-handoff'), resolve(destination, 'patchwork-handoff'), { recursive: true });
   cpSync(resolve(automation, 'AGENTS.md'), resolve(appRoot, 'AGENTS.md'));
   const githubDir = resolve(appRoot, '.github');

@@ -32,7 +32,8 @@ function fixture(t, behavior = {}) {
           if (behavior.sandboxWarning) options.onEvent({ type: 'session.warning', data: { warningType: 'sandbox' } });
           if (behavior.hang) return new Promise(() => {});
           options.onEvent({ type: 'skill.invoked', data: { name: 'service-regression' } });
-          options.onEvent({ type: 'tool.execution_start', data: { toolName: 'sentry-search_issues' } });
+          options.onEvent({ type: 'tool.execution_start', data: { toolName: 'sentry-search_issues', toolCallId: 's1', mcpServerName: 'sentry', mcpToolName: 'search_issues' } });
+          options.onEvent({ type: 'tool.execution_complete', data: { toolCallId: 's1', success: !behavior.toolFailure, result: { content: 'private payload sentry-secret' } } });
           return { data: { content: behavior.empty ? '' : 'Relatório token-test sentry-secret' } };
         },
         disconnect: async () => { state.calls.push('disconnect'); if (behavior.disconnectError) throw new Error('disconnect'); },
@@ -66,8 +67,16 @@ test('token explícito, ambiente sem secrets, MCP restrito, relatório redigido 
   assert.equal(state.session.model, undefined);
   assert.equal(state.metadata.model, 'test-model');
   assert.deepEqual(state.metadata.skillsUsed, ['service-regression']);
+  assert.deepEqual(state.metadata.mcpCalls, [{ tool: 'search_issues', success: true }]);
+  assert.ok(!JSON.stringify(state.metadata).includes('private payload'));
   assert.deepEqual(state.calls, ['start', 'mcp', 'send', 'disconnect', 'stop']);
   assert.ok(!JSON.stringify(state.metadata).includes('sentry-secret'));
+});
+
+test('metadados distinguem falha de consulta de leitura concluída', async t => {
+  const { state, options } = fixture(t, { toolFailure: true });
+  await runAgent(options);
+  assert.deepEqual(state.metadata.mcpCalls, [{ tool: 'search_issues', success: false }]);
 });
 
 test('modelo solicitado é preservado e nenhum fallback pessoal é usado', async t => {

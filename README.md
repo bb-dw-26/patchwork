@@ -71,9 +71,9 @@ Entradas adicionais: `config_path` (padrão `.github/patchwork.json`), `node_ver
 
 ## Skills e MCP
 
-Cada aplicação versiona suas skills em `.agents/skills/`. O Patchwork acrescenta [patchwork-investigation](skills/patchwork-investigation/SKILL.md), que orienta a investigação e o uso das evidências. `service-regression` descreve os contratos e testes da aplicação.
+Cada aplicação versiona suas skills em `.agents/skills/`. O Patchwork acrescenta [patchwork-investigation](skills/patchwork-investigation/SKILL.md), que orienta a investigação, e [patchwork-sentry](skills/patchwork-sentry/SKILL.md), que orienta as consultas de leitura ao MCP e a conferência de projeto, evento e release. `service-regression` descreve os contratos e testes da aplicação.
 
-Antes do agente, `scripts/context.mjs` copia as skills, AGENTS.md, documentação técnica e configuração da revisão confiável para o checkout descartável. A preparação retira catálogos de cenários, gabaritos e adaptadores legados de revisões antigas e recusa uma revisão confiável que ainda contenha esse material. Isso também funciona com branches antigas que ainda não possuem as skills. O prompt manda explicitamente ler e usar as duas skills antes de editar. O relatório deve declarar as skills efetivamente lidas.
+Antes do agente, `scripts/context.mjs` copia as skills, AGENTS.md, documentação técnica e configuração da revisão confiável para o checkout descartável. A preparação retira catálogos de cenários, gabaritos e adaptadores legados de revisões antigas e recusa uma revisão confiável que ainda contenha esse material. Isso também funciona com branches antigas que ainda não possuem as skills. O prompt manda explicitamente ler e usar as três skills antes de editar. O relatório deve declarar as skills efetivamente lidas.
 
 O MCP oficial `@sentry/mcp-server` é instalado pelo lockfile e iniciado via stdio. A sessão recebe `--organization-slug`, `--project-slug` e `--skills=inspect`. A sessão Copilot permite somente `get_sentry_resource`, `search_issues` e `search_events`, sem gateways de execução ou ferramentas de mutação. As buscas usam sintaxe Sentry explícita; o servidor não recebe uma chave de modelo para tradução de linguagem natural.
 
@@ -124,8 +124,10 @@ O chamador e `propose` precisam de `copilot-requests: write`. O owner deve habil
 
 O launcher Linux cria uma conta exclusiva sem sudo, dá escrita apenas ao checkout descartável e à sua pasta temporária e instala bubblewrap/slirp4netns. A sessão usa sandbox sem bypass, discovery/hooks externos desativados, tools explícitas e MCP de leitura. Políticas que exigem humano encerram a execução. O timeout do agente é de 15 minutos dentro do job de 20 minutos. O launcher encerra todos os processos da conta dedicada mesmo em falha ou cancelamento.
 
-`execution.json` registra versão do SDK, modelo, MCP conectado e ferramentas/skills observadas, sem argumentos ou credenciais. `report.md` é coletado da resposta final e redacta tokens conhecidos. Esses registros complementam `agent-context.json`; a evidência de validação permanece em outro runner.
+`execution.json` registra versão do SDK, modelo, MCP conectado, ferramentas/skills observadas e sucesso ou falha das consultas MCP concluídas, sem argumentos, respostas privadas ou credenciais. `report.md` é coletado da resposta final e redacta tokens conhecidos. Esses registros complementam `agent-context.json`; a evidência de validação permanece em outro runner.
 
 Teste sem inferência: `node scripts/copilot-smoke.mjs --offline`. Para verificar token/modelo com uma resposta mínima, publique e dispare `copilot-smoke.yml`; `copilot_model` é opcional. A execução mínima não comprova o benefício de créditos ilimitados: confira a atribuição no billing.
+
+Para conferir o agente com o secret Sentry real de cada consumidor, dispare `sentry-smoke.yml` no aplicativo. Ele chama o workflow compartilhado de mesmo nome por SHA, prepara a skill `patchwork-sentry` e executa o mesmo launcher isolado do reparo. O aceite exige a invocação da skill e uma consulta `search_issues` concluída pelo agente; lista vazia é válida. O artifact `sentry-smoke` contém os metadados e o relatório. Essa execução usa o Copilot, mas não publica issues, patches ou PRs e não precisa de um incidente elegível.
 
 O último [registro de migração](docs/historico/migracao-2026-10-24.md) documenta as pendências observadas em 24/10/2026. Antes da ativação, conferir permissões, integração Sentry e publicação dos SHAs usados pelos consumidores. Esse registro não é uma consulta ao estado remoto atual.
