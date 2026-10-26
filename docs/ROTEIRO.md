@@ -2,19 +2,18 @@
 
 ## Narrativa e escopo
 
-O cenário principal é **CHK-003: envio concorrente iniciado no storefront e observado pelo checkout**. A loja começa com duas unidades de `product-standard`, `customer-pickup` e retirada. O painel começa fechado. Ao abrir o carrinho e repetir a finalização durante a requisição pendente, o backend protege a compra e registra um evento no Sentry.
+O cenário principal é **CHK-003: envio concorrente iniciado no storefront e observado pelo checkout**. A loja começa com duas unidades de `product-standard` e retirada. O painel começa fechado. Ao abrir o carrinho e repetir a finalização durante a requisição pendente, o backend protege a compra e registra um evento no Sentry.
 
 O Patchwork investiga primeiro no repositório que recebeu a issue. Encaminhar é uma saída opcional quando surgem evidências de outro responsável; não existe triagem obrigatória para todos os incidentes. O relatório chega ao destino como hipótese a confirmar. O resultado esperado é uma issue vinculada e um PR no storefront, com regressão demonstrada antes/depois e revisão humana.
 
-O [roteiro técnico de CHK-003](apresentacao/chk-003/ROTEIRO.md) contém preparação, revisões, reprodução e gabarito exclusivos do operador. **CHK-001: retirada sem endereço** permanece como contingência de reparo local no checkout. Não iniciar os dois cenários simultaneamente.
+O [roteiro técnico de CHK-003](apresentacao/chk-003/ROTEIRO.md) contém preparação, revisões, reprodução e gabarito exclusivos do operador. **CHK-004: consulta de CEP inexistente** permanece como contingência de reparo local no checkout. Não iniciar os dois cenários simultaneamente.
 
 ## Papel dos repositórios
 
 | Repositório | Papel |
 | --- | --- |
-| bbdw-checkout | Backend saudável: reserva da intenção, rejeição de concorrência, replay do pedido e origem do evento Sentry |
-| bbdw-storefront | Revisão defeituosa isolada em `demo/chk-003`; destino sugerido somente quando a investigação sustentar a hipótese |
-| bbdw-users | Perfis fictícios e endereços; dependência saudável |
+| bbdw-checkout | Reserva da intenção, rejeição de concorrência, replay do pedido e origem do evento Sentry |
+| bbdw-storefront | Revisão defeituosa na `main`; destino sugerido somente quando a investigação sustentar a hipótese |
 | bbdw-catalog | Catálogo e preços em centavos; dependência saudável em Go |
 | patchwork | Motor compartilhado, skill opcional, publicação autenticada e validação de regressão |
 

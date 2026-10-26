@@ -1,6 +1,6 @@
 # Patchwork v3
 
-Incidentes viram propostas de correção verificadas. Um workflow compartilhado atende `bbdw-checkout`, `bbdw-users`, `bbdw-catalog` e `bbdw-storefront`, com regras próprias para cada aplicação.
+Incidentes viram propostas de correção verificadas. Um workflow compartilhado atende `bbdw-checkout`, `bbdw-catalog` e `bbdw-storefront`, com regras próprias para cada aplicação.
 
 ## Apresentação BBDW
 
@@ -18,7 +18,7 @@ jobs:
       issues: read
       pull-requests: write
       copilot-requests: write
-    uses: bb-dw-26/patchwork/.github/workflows/patchwork.yml@v3
+    uses: bbdw-gh-action/patchwork/.github/workflows/patchwork.yml@v3
     with:
       issue_number: ${{ format('{0}', github.event.issue.number || inputs.issue_number) }}
       config_path: .github/patchwork.json
@@ -48,16 +48,16 @@ A integração GitHub do Sentry deve apontar para a organização e o repositór
 
 ```json
 {
-  "repository": "bb-dw-26/bbdw-users",
+  "repository": "bbdw-gh-action/bbdw-checkout",
   "baseBranch": "main",
   "runtime": "node",
-  "sentry": { "org": "bbdw-workshop-jj", "project": "bbdw-users", "projectId": "4512294855901184" },
-  "sourceFiles": ["src/app.ts"],
-  "testPattern": "^test/patchwork-[a-z0-9-]+\\.test\\.ts$"
+  "sentry": { "org": "bbdw-workshop-jj", "project": "bbdw-checkout", "projectId": "4512294853869568" },
+  "sourceFiles": ["src/modules/orders/services/orders.service.ts"],
+  "testPattern": "^src/modules/orders/services/patchwork-[a-z0-9-]+\\.test\\.ts$"
 }
 ```
 
-A release do evento deve ser o SHA completo do HEAD da branch autorizada e a tag `service` deve corresponder ao projeto. `scenario` é opcional; no checkout vale `CHK-001`, com base `demo/chk-001`. Nos demais, a base é `main`. Eventos sintéticos de SDK, releases abreviadas ou incidentes de revisões antigas são recusados. Esta integração não cria defeitos de demonstração.
+A release do evento deve ser o SHA completo do HEAD da branch autorizada e a tag `service` deve corresponder ao projeto. `scenario` é opcional; o checkout tem configurações para `CHK-003` e `CHK-004`. As branches ativas são `main`. Eventos sintéticos de SDK, releases abreviadas ou incidentes de revisões antigas são recusados. Esta integração não cria defeitos de demonstração.
 
 | Runtime | Instalação no chamador | Validação |
 | --- | --- | --- |
@@ -91,7 +91,7 @@ Os artifacts `incident`, `proposal` e `validation` duram sete dias. Se a publica
 
 ## Publicação de source maps
 
-O [upload centralizado](docs/SOURCEMAPS.md) atende checkout, users e storefront. Os aplicativos mantêm somente comandos de desenvolvimento, build e testes; o smoke integrado permanece no storefront. Os adaptadores antigos de reparo foram removidos.
+O [upload centralizado](docs/SOURCEMAPS.md) atende checkout e storefront (e preserva suporte a releases históricas de users). Os aplicativos mantêm somente comandos de desenvolvimento, build e testes; o smoke integrado permanece no storefront. Os adaptadores antigos de reparo foram removidos.
 
 ## Verificação
 

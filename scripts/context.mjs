@@ -58,7 +58,7 @@ export function prepareDocumentation(automation, app) {
   if (existsSync(manifest)) {
     const pkg = JSON.parse(readFileSync(manifest, 'utf8'));
     // Limpar comandos removidos de revisões antigas sem mudar as dependências do build.
-    if (['bbdw-checkout', 'bbdw-users', 'bbdw-storefront'].includes(pkg.name) && pkg.scripts) {
+    if (['bbdw-checkout', 'bbdw-storefront'].includes(pkg.name) && pkg.scripts) {
       if (pkg.name === 'bbdw-checkout' && pkg.scripts.test) pkg.scripts.test = pkg.scripts.test.replace(/ scripts\/\*\.test\.mjs/g, '');
       for (const name of ['sentry:bridge', 'sentry:publish', 'sentry:upload']) delete pkg.scripts[name];
       writeFileSync(manifest, JSON.stringify(pkg, null, 2) + '\n');
