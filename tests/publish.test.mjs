@@ -47,16 +47,18 @@ function fixture(t) {
     const app = join(root, `app-${++copies}`);
     git(root, ["clone", "--config", "core.autocrlf=false", remote, app]);
     return {
-      config, baseSha, number: "42", artifactDir: artifacts, runId: "1", summaryPath: join(root, "summary.md"),
+      config, baseSha, number: "42", artifactDir: artifacts, runId: "1", summaryPath: join(root, "summary.md"), publisherAppSlug: 'patchwork-publisher',
       runGit: (args) => git(app, args),
       runGh(args, input) {
         if (args[0] === "pr") return pr ? [{ url: prUrl }] : [];
+        if (args[1] === 'users/patchwork-publisher%5Bbot%5D') return { id: 123456, login: 'patchwork-publisher[bot]' };
         if (args[1].includes("/git/ref/")) return { object: { sha: baseSha } };
         if (args[1].includes('/comments')) {
           if (!input) return [comments];
           if (failComment) throw new Error('Falha simulada no comentário');
           const comment = { ...JSON.parse(input), html_url: 'https://github.com/example/testing/issues/42#issuecomment-1',
-            user: { id: 41898282, login: 'github-actions[bot]' } };
+            user: { id: 123456, login: 'patchwork-publisher[bot]', type: 'Bot' },
+            performed_via_github_app: { slug: 'patchwork-publisher' } };
           comments.push(comment); return comment;
         }
         createCalls++;
@@ -89,7 +91,16 @@ test("retoma depois de push concluído sem duplicar commits ou PR", (t) => {
   assert.equal(f.createCalls, 2);
   assert.equal(f.head(), originalHead);
   assert.equal(f.comments.length, 1);
+  assert.equal(f.git(f.remote, ['log', '-1', '--format=%ae', 'refs/heads/agent/chk-001-issue-42']), '123456+patchwork-publisher[bot]@users.noreply.github.com');
   assert.ok(f.comments[0].body.includes(f.prUrl));
+});
+
+test('comentário com marcador de outro autor não impede o resumo do App', t => {
+  const f = fixture(t); f.allowCreation();
+  f.comments.push({ user: { login: 'someone', id: 1, type: 'User' }, body: '<!-- patchwork:repair-summary:42 -->' });
+  publishProposal(f.options()); publishProposal(f.options());
+  assert.equal(f.comments.length, 2);
+  assert.equal(f.comments[1].performed_via_github_app.slug, 'patchwork-publisher');
 });
 
 test('retoma comentário após PR criado sem publicar duas propostas', t => {

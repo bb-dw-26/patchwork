@@ -94,14 +94,15 @@ export function proposalTitle(incident, number) {
   return prefix + title.slice(0, 256 - prefix.length - suffix.length) + suffix;
 }
 
-export function publishProposal({ config, runGit = git, runGh = gh, baseSha, number, artifactDir, runId, summaryPath }) {
+export function publishProposal({ config, runGit = git, runGh = gh, baseSha, number, artifactDir, runId, summaryPath, publisherAppSlug }) {
   if (!positive(number) || !fullSha(baseSha)) throw new Error('Identidade inválida.');
   const repository = config.repository;
   const branch = branchName(config, number);
   const report = readFileSync(resolve(artifactDir, 'report.md'), 'utf8').slice(0, 40000);
   const validation = JSON.parse(readFileSync(resolve(artifactDir, 'validation.json'), 'utf8'));
   if (validation.baseSha !== baseSha || validation.passed !== true) throw new Error('Evidência de validação incompatível.');
-  const comment = prUrl => publishIssueSummary({ repository, number, prUrl, runId, report, runGh });
+  if (publisherAppSlug !== undefined && !/^[a-z0-9-]+$/.test(publisherAppSlug)) throw new Error('Identidade do App inválida.');
+  const comment = prUrl => publishIssueSummary({ repository, number, prUrl, runId, report, runGh, publisherAppSlug });
   const previous = runGh(['pr', 'list', '--repo', repository, '--head', branch, '--state', 'all', '--json', 'url']);
   if (previous.length) { comment(previous[0].url); return previous[0].url; }
   const title = proposalTitle(JSON.parse(readFileSync(resolve(artifactDir, 'incident.json'), 'utf8')), number);
@@ -115,12 +116,14 @@ export function publishProposal({ config, runGit = git, runGh = gh, baseSha, num
     if (runGit(['rev-parse', 'FETCH_HEAD^{tree}']) !== tree || runGit(['rev-parse', 'FETCH_HEAD^']) !== baseSha) throw new Error('Branch remota contém outra proposta.');
   } else {
     runGit(['switch', '-c', branch]);
-    runGit(['config', 'user.name', 'github-actions[bot]']);
-    runGit(['config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com']);
+    const bot = publisherAppSlug ? runGh(['api', `users/${publisherAppSlug}%5Bbot%5D`]) : { login: 'github-actions[bot]', id: 41898282 };
+    if (publisherAppSlug && (bot.login !== `${publisherAppSlug}[bot]` || !Number.isSafeInteger(bot.id) || bot.id < 1)) throw new Error('Identidade do bot divergente.');
+    runGit(['config', 'user.name', bot.login]);
+    runGit(['config', 'user.email', `${bot.id}+${bot.login}@users.noreply.github.com`]);
     runGit(['commit', '-m', `fix: corrige incidente da issue #${number}`]);
     runGit(['push', 'origin', `HEAD:refs/heads/${branch}`]);
   }
-  const body = `Proposta do Patchwork para #${number}, base ${baseSha}. Requer revisão humana.\n\nTeste novo falhou antes e verificações passaram depois.\n[Execução e evidências](https://github.com/${repository}/actions/runs/${runId})\n\n${report}\n\nSem merge ou deploy automáticos. PRs criados com GITHUB_TOKEN exigem aprovação para executar o CI do PR; a validação acima ocorreu em runner separado.\n`;
+  const body = `Proposta do Patchwork para #${number}, base ${baseSha}. Requer revisão humana.\n\nTeste novo falhou antes e verificações passaram depois.\n[Execução e evidências](https://github.com/${repository}/actions/runs/${runId})\n\n${report}\n\nSem merge ou deploy automáticos. Publicação pelo GitHub App dedicado; o CI do PR é disparado automaticamente. A validação acima ocorreu em runner separado.\n`;
   const pr = runGh(['api', `repos/${repository}/pulls`, '--method', 'POST', '--input', '-'], JSON.stringify({
     title, head: branch, base: config.baseBranch, draft: true, body,
   }));
@@ -240,10 +243,11 @@ export async function main(command) {
     if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, 'outcome=repair\n');
   } else if (command === 'validate') validateProposal(config, sha, temp);
   else if (command === 'publish') {
+    if (!process.env.PATCHWORK_PUBLISH_APP_SLUG) throw new Error('App publicador não identificado pelo workflow.');
     const incidentFile = resolve(temp, 'incident.json');
     const incident = existsSync(incidentFile) ? JSON.parse(readFileSync(incidentFile, 'utf8')) : null;
     const effective = incident?.hop === 1 ? { ...config, baseBranch: config.handoff.receiveBranch ?? config.baseBranch } : config;
-    console.log(publishProposal({ config: effective, baseSha: sha, number, artifactDir: temp, runId: process.env.GITHUB_RUN_ID, summaryPath: process.env.GITHUB_STEP_SUMMARY }));
+    console.log(publishProposal({ config: effective, baseSha: sha, number, artifactDir: temp, runId: process.env.GITHUB_RUN_ID, summaryPath: process.env.GITHUB_STEP_SUMMARY, publisherAppSlug: process.env.PATCHWORK_PUBLISH_APP_SLUG }));
   } else if (command === 'handoff') {
     const incident = JSON.parse(readFileSync(resolve(temp, 'incident.json'), 'utf8'));
     const proposal = JSON.parse(readFileSync(resolve(temp, 'handoff.json'), 'utf8'));

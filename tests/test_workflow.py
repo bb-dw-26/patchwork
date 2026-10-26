@@ -18,7 +18,7 @@ class WorkflowTests(unittest.TestCase):
         for name, job in JOBS.items():
             permissions = job.get('permissions', WORKFLOW['permissions'])
             writes = {key for key, value in permissions.items() if value == 'write'}
-            self.assertEqual(writes, {'contents', 'issues', 'pull-requests'} if name == 'publish' else {'copilot-requests'} if name == 'propose' else set())
+            self.assertEqual(writes, {'copilot-requests'} if name == 'propose' else set())
             payload = str(job)
             if name not in ('prepare', 'propose'):
                 self.assertNotIn('secrets.SENTRY_AUTH_TOKEN', payload)
@@ -49,6 +49,25 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(steps[agent]['env'], {'SENTRY_ACCESS_TOKEN':'${{ secrets.SENTRY_AUTH_TOKEN }}',
             'GITHUB_TOKEN':'${{ github.token }}', 'COPILOT_MODEL':'${{ inputs.copilot_model }}'})
 
+    def test_publisher_app_is_scoped_and_never_reaches_agent(self):
+        steps = JOBS['publish']['steps']
+        mint = next(step for step in steps if step.get('id') == 'publisher')
+        self.assertEqual(mint['with'], {
+            'client-id': '${{ vars.PATCHWORK_PUBLISH_APP_CLIENT_ID }}',
+            'private-key': '${{ secrets.PATCHWORK_PUBLISH_APP_PRIVATE_KEY }}',
+            'owner': '${{ github.repository_owner }}',
+            'repositories': '${{ github.event.repository.name }}',
+            'permission-contents': 'write', 'permission-issues': 'write', 'permission-pull-requests': 'write'})
+        self.assertNotIn('skip-token-revoke', mint['with'])
+        checkout = next(s for s in steps if s.get('with', {}).get('path') == 'app')
+        self.assertEqual(checkout['with']['token'], '${{ steps.publisher.outputs.token }}')
+        self.assertLess(steps.index(mint), steps.index(checkout))
+        publish = next(s for s in steps if s.get('run') == 'node patchwork/scripts/engine.mjs publish')
+        self.assertEqual(publish['env']['GH_TOKEN'], '${{ steps.publisher.outputs.token }}')
+        for name, job in JOBS.items():
+            if name != 'publish':
+                self.assertNotIn('PATCHWORK_PUBLISH_APP_PRIVATE_KEY', str(job))
+
     def test_handoff_is_optional_and_app_key_never_reaches_agent(self):
         self.assertEqual(JOBS['validate']['if'], "needs.propose.outputs.outcome == 'repair'")
         self.assertEqual(JOBS['handoff']['if'], "needs.propose.outputs.outcome == 'handoff'")
@@ -75,7 +94,7 @@ class WorkflowTests(unittest.TestCase):
         example = yaml.load((ROOT / 'examples/consumer.yml').read_text(encoding='utf-8'), Loader=yaml.BaseLoader)
         call = example['jobs']['patchwork']
         self.assertEqual(call['permissions']['copilot-requests'], 'write')
-        self.assertEqual(set(call['secrets']), {'SENTRY_AUTH_TOKEN'})
+        self.assertEqual(set(call['secrets']), {'SENTRY_AUTH_TOKEN', 'PATCHWORK_PUBLISH_APP_PRIVATE_KEY'})
         self.assertIn('bb-dw-26/patchwork/', call['uses'])
         self.assertTrue(call['uses'].endswith('@v3'))
 

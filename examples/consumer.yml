@@ -19,9 +19,9 @@ jobs:
         contains(github.event.issue.labels.*.name, 'agent:repair') &&
         contains(github.event.issue.labels.*.name, 'sentry')))
     permissions:
-      contents: write
-      issues: write
-      pull-requests: write
+      contents: read
+      issues: read
+      pull-requests: read
       copilot-requests: write
     # Patchwork v3: motor e workflow fixados na mesma revisão.
     uses: bb-dw-26/patchwork/.github/workflows/patchwork.yml@v3
@@ -32,3 +32,4 @@ jobs:
       install_command: npm ci
     secrets:
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      PATCHWORK_PUBLISH_APP_PRIVATE_KEY: ${{ secrets.PATCHWORK_PUBLISH_APP_PRIVATE_KEY }}

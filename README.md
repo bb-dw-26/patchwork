@@ -14,9 +14,9 @@ O consumidor mantém `.github/patchwork.json`, `.agents/skills/service-regressio
 jobs:
   patchwork:
     permissions:
-      contents: write
-      issues: write
-      pull-requests: write
+      contents: read
+      issues: read
+      pull-requests: read
       copilot-requests: write
     uses: bbdw-gh-action/patchwork/.github/workflows/patchwork.yml@v3
     with:
@@ -26,6 +26,7 @@ jobs:
       install_command: npm ci
     secrets:
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      PATCHWORK_PUBLISH_APP_PRIVATE_KEY: ${{ secrets.PATCHWORK_PUBLISH_APP_PRIVATE_KEY }}
 ```
 
 Em produção, fixe o SHA completo da versão revisada. O próprio workflow usa `job.workflow_sha` e `job.workflow_repository` para obter o motor na mesma revisão. Esses contextos exigem GitHub.com e não estão disponíveis no GitHub Enterprise Server. As versões antigas permanecem nas tags existentes. A v3 substitui a Action Codex pelo Copilot SDK 1.0.26 e seu runtime 1.0.103, fixados pelo lockfile; Node 24 é mantido.
@@ -85,7 +86,7 @@ O contexto temporário `patchwork-copilot/context.json` contém caminhos das ski
 
 `prepare → propose → validate → publish`, em quatro runners. O motor vem do SHA do workflow reutilizável, a política do SHA do workflow consumidor e a aplicação do SHA do incidente. Agente e validador não recebem escrita no GitHub. O validador não recebe secrets. Somente o publicador recebe escrita e nunca executa a aplicação.
 
-O PR é draft, com base definida na configuração. O título segue `fix: [CÓDIGO-SENTRY] <título da issue> (#número)`, usando o título da issue GitHub e o `shortId` obtido da API Sentry na preparação; esses valores são tratados como texto. Após publicá-lo, o publicador comenta na issue um resumo de causa, correção, validação e links para PR e execução. O comentário é idempotente; uma retomada após falha não duplica o PR ou o comentário. Somente esse job recebe `issues: write`; o agente continua sem escrita no GitHub. Sem merge ou deploy automáticos. PRs criados ou atualizados com `GITHUB_TOKEN` geram execuções de `pull_request` que aguardam aprovação de alguém com escrita no repositório. A validação do Patchwork já ocorreu em runner separado. Aprove o CI na página do PR. Para CI sem essa aprovação, a publicação precisa usar um token de instalação de GitHub App ou PAT, conforme a [documentação do GitHub](https://docs.github.com/en/actions/concepts/security/github_token#when-github_token-triggers-workflow-runs); isso não aprova o merge.
+O PR é draft, com base definida na configuração. O título segue `fix: [CÓDIGO-SENTRY] <título da issue> (#número)`, usando o título da issue GitHub e o `shortId` obtido da API Sentry na preparação; esses valores são tratados como texto. Após publicá-lo, o publicador comenta na issue um resumo de causa, correção, validação e links para PR e execução. O comentário é idempotente; uma retomada após falha não duplica o PR ou o comentário. Somente esse job recebe o token do App publicador; o agente continua sem escrita no GitHub. Sem merge ou deploy automáticos. O [GitHub App publicador](docs/PUBLISHER.md) emite um token temporário por repositório para push, PR e comentário; a action revoga-o ao terminar. Assim, o CI do PR é disparado sem a aprovação especial do `GITHUB_TOKEN`. Configure `PATCHWORK_PUBLISH_APP_CLIENT_ID` e `PATCHWORK_PUBLISH_APP_PRIVATE_KEY` em cada consumidor. O Copilot continua usando `GITHUB_TOKEN`.
 
 Os artifacts `incident`, `proposal` e `validation` duram sete dias. Se a publicação falhar depois do push, use **Re-run failed jobs** enquanto os artifacts existirem. O motor confere base, conteúdo e proposta remota, sem force-push ou duplicação de PRs.
 
