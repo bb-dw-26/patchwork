@@ -38,7 +38,8 @@ jobs:
           node-version: '24'
       - name: Instalar Copilot CLI e MCP Sentry
         run: |
-          npm install --global @github/copilot
+          npm install --global @github/copilot@1.0.103
+          copilot --no-auto-update --version
           npm ci --ignore-scripts --omit=dev --prefix patchwork
       - name: Preparar consulta
         id: context
@@ -52,6 +53,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           SENTRY_ACCESS_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          COPILOT_MODEL: claude-sonnet-5.5
           PATCHWORK_DIR: ${{ steps.context.outputs.directory }}
           PATCHWORK_TIMEOUT: 3m
         run: |
@@ -80,7 +82,7 @@ jobs:
           printf 'Prompt enviado ao Copilot:\n\n'
           cat "$PATCHWORK_DIR/prompt.md"
           printf '\n\n'
-          args=(-p "$(cat "$PATCHWORK_DIR/prompt.md")" --no-color --no-ask-user
+          args=(-p "$(cat "$PATCHWORK_DIR/prompt.md")" --no-auto-update --no-color --no-ask-user
             --stream on --log-level none --add-dir "$COPILOT_SKILLS_DIRS"
             --disable-builtin-mcps --additional-mcp-config "@$PATCHWORK_DIR/mcp.json"
             --allow-tool read --allow-tool write --allow-tool shell --allow-tool sentry

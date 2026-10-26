@@ -6,7 +6,7 @@ Um incidente Sentry vira uma correção proposta ou uma issue vinculada ao servi
 
 **Preparar contexto → Copilot → verificar aplicação → abrir PR em rascunho.** Tudo ocorre em um único job, com dois checkouts: Patchwork e aplicação. Se a investigação apontar outro responsável, o workflow cria uma issue vinculada e não executa testes locais.
 
-O workflow instala `@github/copilot` e o MCP Sentry, lê a issue e disponibiliza as skills. O Copilot modifica o checkout e responde com um JSON curto. O step seguinte executa `check_command` uma vez; somente o resultado aprovado permite abrir o PR. A publicação usa o GitHub App já configurado.
+O workflow instala `@github/copilot@1.0.103` e o MCP Sentry, lê a issue e disponibiliza as skills. Reparo e smoke usam `claude-sonnet-5.5` explicitamente e desativam a atualização automática do CLI; sua versão aparece no step de instalação. O Copilot modifica o checkout e responde com um JSON curto. O step seguinte executa `check_command` uma vez; somente o resultado aprovado permite abrir o PR. A publicação usa o GitHub App já configurado.
 
 Não há upload/download de artefatos, patches intermediários, relatórios de auditoria, assinatura de encaminhamento ou prova automática antes/depois. Logs do Actions, diff do PR e comentário curto na issue são os pontos de acompanhamento.
 
@@ -59,7 +59,7 @@ O gatilho permanece restrito a issues Sentry com `sentry` e `agent:repair`, issu
 | `go_version_file` | Vazio; catalog usa `go.mod` |
 | `install_command` | `npm ci`; catalog usa `go mod download` |
 | `check_command` | `npm run check`; catalog informa formatação, vet, testes com race e build |
-| `copilot_model` | Vazio usa o modelo padrão permitido pela organização |
+| `copilot_model` | `claude-sonnet-5.5`; opcionalmente outro modelo permitido pela organização. Vazio mantém esse padrão explícito |
 
 Os comandos vêm do workflow do consumidor, nunca do corpo da issue. Checkout e storefront usam `npm run check`. Storefront instala Chromium antes da investigação.
 
@@ -69,13 +69,13 @@ A autenticação usa `GITHUB_TOKEN` com `copilot-requests: write`. A organizaç�
 
 As skills compartilhadas ficam em `COPILOT_HOME/skills`, no diretório temporário do Copilot. O prompt informa seus caminhos completos e o CLI recebe acesso a esse diretório; a skill do serviço e AGENTS.md são lidos do checkout atual. O escopo efetivo vem da configuração selecionada pelo consumidor. O MCP usa o projeto de origem, inclusive em encaminhamentos, e permite somente `get_sentry_resource`, `search_issues` e `search_events`. O token Sentry entra pelo secret do Actions, que o mascara nos logs; a configuração MCP contém apenas a referência à variável de ambiente.
 
-O Copilot acrescenta uma regressão pertinente e resume a causa e a mudança. O workflow executa a verificação completa uma vez após sua resposta. Formato final:
+O Copilot acrescenta uma regressão pertinente e resume a causa e a mudança. Em concorrência, o teste mantém a operação pendente e verifica uma nova interação durante a espera. A correção preserva os códigos de erro do contrato, inclusive quando compartilham o mesmo status HTTP. O workflow executa a verificação completa uma vez após sua resposta. Formato final:
 
 ```json
 {"outcome":"repair","summary":"Causa e alteração em até dois parágrafos curtos."}
 ```
 
-Também são aceitos `noop`, sem alterações, e `handoff`, com `destination` autorizado e resumo da hipótese. Uma resposta inválida encerra a execução. Sem alteração nem encaminhamento, nenhum PR é aberto.
+Também são aceitos `noop`, sem alterações, e `handoff`, com `destination` autorizado e resumo do comportamento observado, hipótese a confirmar e motivo do destino. O encaminhamento deixa a escolha da correção para a investigação no receptor. Uma resposta inválida encerra a execução. Sem alteração nem encaminhamento, nenhum PR é aberto.
 
 Prompt, configuração MCP, resposta e estado local do CLI são temporários e removidos no encerramento. O shell encerra o grupo de processos do CLI em sucesso, falha, timeout ou cancelamento. O limite do CLI é 15 minutos e o da verificação é 8 minutos.
 

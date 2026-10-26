@@ -9,7 +9,7 @@ O padrão é corrigir no repositório atual. Apenas quando a investigação indi
 3. Storefront lê a hipótese e consulta o projeto Sentry de origem. Produz a correção e uma regressão pertinente.
 4. Seu workflow executa a verificação uma vez e abre um PR em rascunho.
 
-A issue de origem permanece aberta. A resposta do agente não é uma instrução confiável nem uma conclusão obrigatória para o destino. Um incidente recebido não pode ser encaminhado novamente.
+A issue de origem permanece aberta. O resumo separa comportamento observado, hipótese a confirmar e motivo do destino; a escolha da correção cabe à investigação no receptor. A resposta do agente não é uma instrução confiável nem uma conclusão obrigatória para o destino. Preserve o significado dos códigos de erro da aplicação, mesmo quando compartilham um status HTTP. Um incidente recebido não pode ser encaminhado novamente.
 
 ## Configuração e App
 
