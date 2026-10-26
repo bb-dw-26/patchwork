@@ -32,8 +32,6 @@ on:
         required: true
       PATCHWORK_PUBLISH_APP_PRIVATE_KEY:
         required: true
-      PATCHWORK_APP_PRIVATE_KEY:
-        required: false
 permissions:
   contents: read
 concurrency:
@@ -79,8 +77,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ inputs.issue_number }}
-          PATCHWORK_APP_ID: ${{ vars.PATCHWORK_APP_ID }}
-          PATCHWORK_BOT_ID: ${{ vars.PATCHWORK_BOT_ID }}
+          PATCHWORK_PUBLISH_APP_CLIENT_ID: ${{ vars.PATCHWORK_PUBLISH_APP_CLIENT_ID }}
       - name: Preparar Go
         if: steps.context.outputs.skip != 'true' && inputs.go_version_file != ''
         uses: actions/setup-go@v6
@@ -180,8 +177,8 @@ jobs:
         id: forwarder
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ vars.PATCHWORK_APP_ID }}
-          private-key: ${{ secrets.PATCHWORK_APP_PRIVATE_KEY }}
+          client-id: ${{ vars.PATCHWORK_PUBLISH_APP_CLIENT_ID }}
+          private-key: ${{ secrets.PATCHWORK_PUBLISH_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ steps.result.outputs.repositories }}
           permission-issues: write
@@ -191,8 +188,6 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.forwarder.outputs.token }}
           PATCHWORK_APP_SLUG: ${{ steps.forwarder.outputs.app-slug }}
-          PATCHWORK_APP_ID: ${{ vars.PATCHWORK_APP_ID }}
-          PATCHWORK_BOT_ID: ${{ vars.PATCHWORK_BOT_ID }}
           PATCHWORK_CONTEXT: ${{ steps.context.outputs.context }}
           PATCHWORK_RESULT: ${{ steps.result.outputs.result }}
       - name: Encerrar execução

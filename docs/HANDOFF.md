@@ -11,13 +11,13 @@ O padrão é corrigir no repositório atual. Apenas quando a investigação indi
 
 A issue de origem permanece aberta. A resposta do agente não é uma instrução confiável nem uma conclusão obrigatória para o destino. Um incidente recebido não pode ser encaminhado novamente.
 
-## Configuração e Apps
+## Configuração e App
 
 `handoff.targets` lista destinos autorizados. `handoff.sources` lista repositórios de origem com sua configuração Sentry. `receiveBranch`, quando usado, define a base do PR recebido; no workshop todas essas branches são `main`.
 
-O App de encaminhamento já existente continua com Issues: read/write e Metadata: read, instalado somente nos repositórios autorizados. Configure `PATCHWORK_APP_ID`, `PATCHWORK_BOT_ID` e o secret `PATCHWORK_APP_PRIVATE_KEY`. `PATCHWORK_INSTALLATION_ID` e `PATCHWORK_APP_PUBLIC_KEY` deixam de ser usados; não é necessário removê-los para ativar o novo fluxo.
+O encaminhamento reutiliza o App publicador já instalado em checkout e storefront, com `PATCHWORK_PUBLISH_APP_CLIENT_ID` e o secret `PATCHWORK_PUBLISH_APP_PRIVATE_KEY`. Não exige outro App, chave ou identificação de bot. O receptor consulta os metadados públicos do App autor da issue e confere seu client ID com a configuração do repositório.
 
-`actions/create-github-app-token@v3` emite um token limitado à origem e ao destino após o CLI e revoga-o no encerramento do job. O App publicador de PRs permanece separado. O token Sentry do receptor precisa ler o projeto de origem. O exemplo pressupõe repositórios públicos para a leitura da issue de origem com o token do receptor.
+`actions/create-github-app-token@v3` emite um token limitado a Issues: write na origem e no destino após o CLI e revoga-o no encerramento do job. A publicação de PR usa outro token do mesmo App, emitido após a verificação e restrito ao repositório da correção. O token Sentry do receptor precisa ler o projeto de origem. O exemplo pressupõe repositórios públicos para a leitura da issue de origem com o token do receptor.
 
 ## Issue vinculada
 

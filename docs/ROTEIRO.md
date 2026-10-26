@@ -19,7 +19,7 @@ O [roteiro técnico de CHK-003](apresentacao/chk-003/ROTEIRO.md) contém prepara
 
 ## Preparação antes da sessão
 
-- Publicar as revisões preparadas e configurar o App de issues apenas nos repositórios autorizados. Conferir as permissões e configuração descritas em [HANDOFF.md](HANDOFF.md).
+- Publicar as revisões preparadas e conferir que o App publicador está instalado nos repositórios de origem e destino. O encaminhamento usa o mesmo App, conforme [HANDOFF.md](HANDOFF.md).
 - Fixar as releases exatas executadas. Configurar atraso de 1500 ms somente no checkout do ensaio; padrão zero fora dele. Executar somente uma instância.
 - Ensaiar a cadeia Sentry → issue original → investigação → proposta opcional → issue vinculada → investigação no destino → PR em rascunho.
 - Confirmar que a credencial Copilot e a integração Sentry funcionam. Testes locais com coletores e APIs simuladas não comprovam a ativação remota.

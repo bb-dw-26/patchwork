@@ -37,16 +37,18 @@ test('origem Sentry e disparo manual autorizado; sem conferir SHA da release', (
 test('encaminhamento aceita apenas App e origem permitidos; formato antigo não é migrado', () => {
   const receiver = { ...config, repository: 'demo/target', handoff: { targets: [], sources: [{ repository: 'demo/source', sentry: config.sentry }] } };
   const issue = { ...original, number: 70, body: '<!-- patchwork:handoff:demo/source#42 -->\nHipótese.',
-    user: { id: 99, type: 'Bot' }, performed_via_github_app: { id: 88 }, labels: [{ name: 'agent:repair' }, { name: 'agent:handoff' }] };
-  const receiverEnv = { ...env, GITHUB_REPOSITORY: receiver.repository, ISSUE_NUMBER: '70', GITHUB_ACTOR_ID: '99', PATCHWORK_APP_ID: '88', PATCHWORK_BOT_ID: '99' };
-  const runGh = args => args[1].endsWith('/70') ? issue : original;
+    user: { id: 99, login: 'publisher[bot]', type: 'Bot' }, performed_via_github_app: null, labels: [{ name: 'agent:repair' }, { name: 'agent:handoff' }] };
+  const receiverEnv = { ...env, GITHUB_REPOSITORY: receiver.repository, ISSUE_NUMBER: '70', GITHUB_ACTOR_ID: '99', PATCHWORK_PUBLISH_APP_CLIENT_ID: 'Iv-test' };
+  const app = { id: 88, slug: 'publisher', client_id: 'Iv-test' };
+  const runGh = args => args[1] === 'apps/publisher' ? app : args[1].endsWith('/70') ? issue : original;
   const received = readContext(receiver, receiverEnv, runGh);
   assert.equal(received.incoming, true);
   assert.equal(received.sourceUrl, context.url);
   assert.equal(received.sentry.project, 'source');
   assert.throws(() => interpretResponse(JSON.stringify(handoff), received, []), /Segundo/);
-  assert.throws(() => readContext(receiver, { ...receiverEnv, PATCHWORK_APP_ID: '87' }, runGh), /Origem/);
-  assert.throws(() => readContext(receiver, receiverEnv, () => ({ ...issue, body: '<!-- patchwork-handoff:v1 antigo -->' })), /antigo/);
+  assert.throws(() => readContext(receiver, { ...receiverEnv, PATCHWORK_PUBLISH_APP_CLIENT_ID: 'outro-app' }, runGh), /Origem/);
+  assert.throws(() => readContext(receiver, receiverEnv, args => args[1] === 'apps/publisher' ? app : { ...issue, user: { ...issue.user, type: 'User' } }), /Origem/);
+  assert.throws(() => readContext(receiver, receiverEnv, args => args[1] === 'apps/publisher' ? app : { ...issue, body: '<!-- patchwork-handoff:v1 antigo -->' }), /antigo/);
 });
 
 test('resposta pequena diferencia correção, encaminhamento e ausência de alterações', () => {
@@ -157,12 +159,12 @@ test('encaminhamento cria issue com origem e deduplica inclusive issue fechada',
     if (path.endsWith('/comments')) { comments.push({ ...body, user: { login: 'forwarder[bot]' } }); return {}; }
     if (path.endsWith('/issues')) {
       const issue = { ...body, number: 70, html_url: 'https://github.com/demo/target/issues/70',
-        state: 'closed', user: { id: 99, type: 'Bot' }, performed_via_github_app: { id: 88 } };
+        state: 'closed', user: { id: 99, login: 'forwarder[bot]', type: 'Bot' }, performed_via_github_app: null };
       issues.push(issue); return issue;
     }
     throw new Error(path);
   };
-  const options = { runGh, appSlug: 'forwarder', appId: '88', botId: '99', runId: '71' };
+  const options = { runGh, appSlug: 'forwarder', runId: '71' };
   const url = publishHandoff(context, handoff, options);
   assert.equal(publishHandoff(context, handoff, options), url);
   assert.equal(issues.length, 1); assert.equal(comments.length, 1);

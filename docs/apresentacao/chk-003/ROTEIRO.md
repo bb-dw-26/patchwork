@@ -6,9 +6,9 @@ Não copiar este diretório, roteiro ou gabarito para `.agents`, prompts ou docs
 
 A revisão defeituosa está na `main` do storefront; a versão healthy será preparada depois. A cobertura prévia de lock imediato e segundo clique durante a requisição foi removida por decisão do operador. O agente deve criar o teste de regressão durante a investigação. `create-scenario.mjs` pertence à preparação histórica em branches e não deve ser executado sobre esta main.
 
-Checkout e storefront usam `main` nos mirrors `bbdw-gh-action`. Configure `CHECKOUT_DEMO_DELAY_MS=1500` somente no checkout do ensaio. Configure `SENTRY_RELEASE` e `VITE_SENTRY_RELEASE` com os SHAs exatos executados e publique seus source maps. Fora do ensaio, atraso zero. A captura de concorrência recebe `scenario=CHK-003` independentemente da modalidade.
+Checkout e storefront usam `main` em `bb-dw-26`. Configure `CHECKOUT_DEMO_DELAY_MS=1500` somente no checkout do ensaio. Configure `SENTRY_RELEASE` e `VITE_SENTRY_RELEASE` com os SHAs exatos executados e publique seus source maps. Fora do ensaio, atraso zero. A captura de concorrência recebe `scenario=CHK-003` independentemente da modalidade.
 
-Antes da execução remota, confira o App conforme `docs/HANDOFF.md`, o workflow publicado e as permissões dos mirrors. A investigação continua local por padrão; encaminhamento requer evidências.
+Antes da execução remota, confira o App publicador conforme `docs/HANDOFF.md`, o workflow publicado e as permissões dos repositórios. O mesmo App abre PRs e issues de encaminhamento, com tokens de escopos diferentes. A investigação continua local por padrão; encaminhamento requer evidências.
 
 ## Apresentação
 

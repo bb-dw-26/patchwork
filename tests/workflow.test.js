@@ -38,6 +38,11 @@ test('verificação única, tokens posteriores e cleanup mesmo em falha', () => 
   assert.equal(step('forwarder').if, "steps.result.outputs.outcome == 'handoff'");
   assert.ok(job.steps.indexOf(step('publisher')) > job.steps.indexOf(step('check')));
   assert.equal(step('forwarder').with['permission-issues'], 'write');
+  assert.equal(step('forwarder').with['client-id'], step('publisher').with['client-id']);
+  assert.equal(step('forwarder').with['private-key'], step('publisher').with['private-key']);
+  assert.equal(step('forwarder').with['permission-contents'], undefined);
+  assert.equal(step('forwarder').with['permission-pull-requests'], undefined);
+  assert.doesNotMatch(JSON.stringify(workflow), /PATCHWORK_APP_ID|PATCHWORK_BOT_ID|PATCHWORK_APP_PRIVATE_KEY/);
   assert.doesNotMatch(JSON.stringify(step('copilot')), /PRIVATE_KEY|publisher|forwarder/);
   assert.equal(job.steps.at(-1).if, 'always()');
   assert.match(job.steps.at(-1).run, /cleanup/);

@@ -83,13 +83,13 @@ Reparo e smoke mostram o prompt enviado e a saída normal do CLI em tempo real, 
 
 O agente pode executar um teste direcionado quando necessário, com saída e código de erro preservados. A suíte completa roda uma vez no step de verificação. Resumo e PR distinguem a análise do Copilot da verificação executada pelo workflow.
 
-Este desenho usa um runner descartável para o workshop. Agente, testes e publicação compartilham esse runner; não existe isolamento por usuário ou por runners independentes. Os tokens dos Apps são emitidos somente depois do CLI e, no reparo, dos testes.
+Este desenho usa um runner descartável para o workshop. Agente, testes e publicação compartilham esse runner; não existe isolamento por usuário ou por runners independentes. Os tokens do App são emitidos somente depois do CLI e, no reparo, dos testes.
 
 ## Publicação e encaminhamento
 
 O PR é draft; sua descrição e o comentário na issue contêm causa, alteração, resultado da verificação e links. A branch por issue evita PR duplicado. Se um push anterior criou uma branch sem PR, a execução pede revisão dessa publicação e não faz force-push. Não há garantia de retomada de todos os passos de uma execução interrompida.
 
-O [App publicador](docs/PUBLISHER.md) continua usando `PATCHWORK_PUBLISH_APP_CLIENT_ID` e `PATCHWORK_PUBLISH_APP_PRIVATE_KEY`. O [encaminhamento opcional](docs/HANDOFF.md) mantém o App restrito a Issues, com origem/destino permitidos e apenas um salto. O protocolo simplificado vale para novas issues; encaminhamentos antigos não são migrados.
+O [App publicador](docs/PUBLISHER.md) usa `PATCHWORK_PUBLISH_APP_CLIENT_ID` e `PATCHWORK_PUBLISH_APP_PRIVATE_KEY` tanto para PRs quanto para o [encaminhamento opcional](docs/HANDOFF.md). O encaminhamento recebe um token restrito a Issues, com origem/destino permitidos e apenas um salto. O receptor valida a identidade do App pelo client ID; nenhum App ou secret adicional é necessário. O protocolo simplificado vale para novas issues; encaminhamentos antigos não são migrados.
 
 ## Verificação local
 

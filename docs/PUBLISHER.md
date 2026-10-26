@@ -1,6 +1,6 @@
 # GitHub App publicador
 
-O App `bbdw-patchwork-publisher` publica branches, PRs e comentários em checkout, catalog e storefront. Suas permissões são Contents, Pull requests e Issues com leitura/escrita, além de Metadata: read. O App de encaminhamento continua separado e restrito a Issues.
+O App `bbdw-patchwork-publisher` publica branches, PRs, comentários e issues de encaminhamento em checkout, catalog e storefront. Suas permissões são Contents, Pull requests e Issues com leitura/escrita, além de Metadata: read. Cada step emite um token com as permissões e os repositórios necessários; o encaminhamento usa somente Issues: write.
 
 Cada consumidor mantém `PATCHWORK_PUBLISH_APP_CLIENT_ID` e o secret `PATCHWORK_PUBLISH_APP_PRIVATE_KEY`. Nunca versionar a chave. Não há mudança nessas credenciais.
 

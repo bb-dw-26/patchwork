@@ -102,12 +102,15 @@ export function loadConfig(file, app = "app") {
   return config;
 }
 
-const fromApp = (issue, env) =>
+const fromApp = (issue, appSlug) =>
   issue.user?.type === "Bot" &&
-  positive(env.PATCHWORK_BOT_ID) &&
-  positive(env.PATCHWORK_APP_ID) &&
-  String(issue.user.id) === env.PATCHWORK_BOT_ID &&
-  String(issue.performed_via_github_app?.id) === env.PATCHWORK_APP_ID;
+  !!appSlug && issue.user.login === `${appSlug}[bot]`;
+function fromPublisher(issue, clientId, runGh) {
+  const match = issue.user?.login?.match(/^([a-z0-9-]+)\[bot\]$/);
+  if (!clientId || issue.user?.type !== "Bot" || !match) return false;
+  const app = api(runGh, `apps/${match[1]}`);
+  return app.client_id === clientId && fromApp(issue, app.slug);
+}
 const fromSentry = (issue) =>
   issue.user?.login === "sentry[bot]" &&
   issue.user?.id === 39604003 &&
@@ -147,7 +150,7 @@ export function readContext(config, env = process.env, runGh = gh) {
     issue.pull_request ||
     !labels(issue).includes("agent:repair") ||
     !(incoming
-      ? fromApp(issue, env)
+      ? fromPublisher(issue, env.PATCHWORK_PUBLISH_APP_CLIENT_ID, runGh)
       : fromSentry(issue) && labels(issue).includes("sentry"))
   )
     throw new Error("Origem da issue não autorizada.");
@@ -421,7 +424,7 @@ export function publishRepair(
 export function publishHandoff(
   context,
   result,
-  { runGh = gh, appSlug, botId, appId, runId } = {},
+  { runGh = gh, appSlug, runId } = {},
 ) {
   interpretResponse(JSON.stringify(result), context, []);
   if (result.outcome !== "handoff")
@@ -437,10 +440,7 @@ export function publishHandoff(
     (item) =>
       !item.pull_request &&
       item.body?.includes(marker) &&
-      fromApp(item, {
-        PATCHWORK_APP_ID: String(appId),
-        PATCHWORK_BOT_ID: String(botId),
-      }),
+      fromApp(item, appSlug),
   );
   if (!issue) {
     const existing = pages(runGh, `repos/${destination}/labels?per_page=100`);
@@ -535,11 +535,7 @@ export async function main(command, env = process.env) {
             checkCommand: env.PATCHWORK_CHECK_COMMAND,
             files: changedFiles(context.config),
           })
-        : publishHandoff(context, result, {
-            ...options,
-            appId: env.PATCHWORK_APP_ID,
-            botId: env.PATCHWORK_BOT_ID,
-          });
+        : publishHandoff(context, result, options);
     info(`Publicado: ${url}`);
     summary(`Resultado: ${url}`);
   } else if (command === "cleanup") {
