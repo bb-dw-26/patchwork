@@ -105,12 +105,8 @@ export function loadConfig(file, app = "app") {
 const fromApp = (issue, appSlug) =>
   issue.user?.type === "Bot" &&
   !!appSlug && issue.user.login === `${appSlug}[bot]`;
-function fromPublisher(issue, clientId, runGh) {
-  const match = issue.user?.login?.match(/^([a-z0-9-]+)\[bot\]$/);
-  if (!clientId || issue.user?.type !== "Bot" || !match) return false;
-  const app = api(runGh, `apps/${match[1]}`);
-  return app.client_id === clientId && fromApp(issue, app.slug);
-}
+const fromPublisher = (issue, botId) =>
+  issue.user?.type === "Bot" && positive(botId) && String(issue.user.id) === botId;
 const fromSentry = (issue) =>
   issue.user?.login === "sentry[bot]" &&
   issue.user?.id === 39604003 &&
@@ -150,7 +146,7 @@ export function readContext(config, env = process.env, runGh = gh) {
     issue.pull_request ||
     !labels(issue).includes("agent:repair") ||
     !(incoming
-      ? fromPublisher(issue, env.PATCHWORK_PUBLISH_APP_CLIENT_ID, runGh)
+      ? fromPublisher(issue, env.PATCHWORK_PUBLISH_BOT_ID)
       : fromSentry(issue) && labels(issue).includes("sentry"))
   )
     throw new Error("Origem da issue não autorizada.");

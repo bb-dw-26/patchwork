@@ -89,7 +89,7 @@ Este desenho usa um runner descartável para o workshop. Agente, testes e public
 
 O PR é draft; sua descrição e o comentário na issue contêm causa, alteração, resultado da verificação e links. A branch por issue evita PR duplicado. Se um push anterior criou uma branch sem PR, a execução pede revisão dessa publicação e não faz force-push. Não há garantia de retomada de todos os passos de uma execução interrompida.
 
-O [App publicador](docs/PUBLISHER.md) usa `PATCHWORK_PUBLISH_APP_CLIENT_ID` e `PATCHWORK_PUBLISH_APP_PRIVATE_KEY` tanto para PRs quanto para o [encaminhamento opcional](docs/HANDOFF.md). O encaminhamento recebe um token restrito a Issues, com origem/destino permitidos e apenas um salto. O receptor valida a identidade do App pelo client ID; nenhum App ou secret adicional é necessário. O protocolo simplificado vale para novas issues; encaminhamentos antigos não são migrados.
+O [App publicador](docs/PUBLISHER.md) usa `PATCHWORK_PUBLISH_APP_CLIENT_ID` e `PATCHWORK_PUBLISH_APP_PRIVATE_KEY` tanto para PRs quanto para o [encaminhamento opcional](docs/HANDOFF.md). O encaminhamento recebe um token restrito a Issues, com origem/destino permitidos e apenas um salto. O receptor valida o autor pelo ID público do bot, configurado em `PATCHWORK_PUBLISH_BOT_ID`; nenhum App ou secret adicional é necessário. O protocolo simplificado vale para novas issues; encaminhamentos antigos não são migrados.
 
 ## Verificação local
 

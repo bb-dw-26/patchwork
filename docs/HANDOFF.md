@@ -15,7 +15,7 @@ A issue de origem permanece aberta. A resposta do agente não é uma instrução
 
 `handoff.targets` lista destinos autorizados. `handoff.sources` lista repositórios de origem com sua configuração Sentry. `receiveBranch`, quando usado, define a base do PR recebido; no workshop todas essas branches são `main`.
 
-O encaminhamento reutiliza o App publicador já instalado em checkout e storefront, com `PATCHWORK_PUBLISH_APP_CLIENT_ID` e o secret `PATCHWORK_PUBLISH_APP_PRIVATE_KEY`. Não exige outro App, chave ou identificação de bot. O receptor consulta os metadados públicos do App autor da issue e confere seu client ID com a configuração do repositório.
+O encaminhamento reutiliza o App publicador já instalado em checkout e storefront, com `PATCHWORK_PUBLISH_APP_CLIENT_ID` e o secret `PATCHWORK_PUBLISH_APP_PRIVATE_KEY`. Não exige outro App ou chave. A variável `PATCHWORK_PUBLISH_BOT_ID` guarda o ID público do bot desse mesmo App, obtido uma vez com `gh api 'users/bbdw-patchwork-publisher[bot]' --jq .id`. O receptor confere esse ID e o tipo Bot retornados pela API de issues; não depende de consultar metadados de Apps privados com o token do Actions.
 
 `actions/create-github-app-token@v3` emite um token limitado a Issues: write na origem e no destino após o CLI e revoga-o no encerramento do job. A publicação de PR usa outro token do mesmo App, emitido após a verificação e restrito ao repositório da correção. O token Sentry do receptor precisa ler o projeto de origem. O exemplo pressupõe repositórios públicos para a leitura da issue de origem com o token do receptor.
 

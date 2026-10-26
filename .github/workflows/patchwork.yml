@@ -77,7 +77,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ inputs.issue_number }}
-          PATCHWORK_PUBLISH_APP_CLIENT_ID: ${{ vars.PATCHWORK_PUBLISH_APP_CLIENT_ID }}
+          PATCHWORK_PUBLISH_BOT_ID: ${{ vars.PATCHWORK_PUBLISH_BOT_ID }}
       - name: Preparar Go
         if: steps.context.outputs.skip != 'true' && inputs.go_version_file != ''
         uses: actions/setup-go@v6

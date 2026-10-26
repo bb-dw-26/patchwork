@@ -38,17 +38,19 @@ test('encaminhamento aceita apenas App e origem permitidos; formato antigo não 
   const receiver = { ...config, repository: 'demo/target', handoff: { targets: [], sources: [{ repository: 'demo/source', sentry: config.sentry }] } };
   const issue = { ...original, number: 70, body: '<!-- patchwork:handoff:demo/source#42 -->\nHipótese.',
     user: { id: 99, login: 'publisher[bot]', type: 'Bot' }, performed_via_github_app: null, labels: [{ name: 'agent:repair' }, { name: 'agent:handoff' }] };
-  const receiverEnv = { ...env, GITHUB_REPOSITORY: receiver.repository, ISSUE_NUMBER: '70', GITHUB_ACTOR_ID: '99', PATCHWORK_PUBLISH_APP_CLIENT_ID: 'Iv-test' };
-  const app = { id: 88, slug: 'publisher', client_id: 'Iv-test' };
-  const runGh = args => args[1] === 'apps/publisher' ? app : args[1].endsWith('/70') ? issue : original;
+  const receiverEnv = { ...env, GITHUB_REPOSITORY: receiver.repository, ISSUE_NUMBER: '70', GITHUB_ACTOR_ID: '99', PATCHWORK_PUBLISH_BOT_ID: '99' };
+  const runGh = args => {
+    assert.ok(!args[1].startsWith('apps/'), 'O token do Actions não pode consultar o App privado.');
+    return args[1].endsWith('/70') ? issue : original;
+  };
   const received = readContext(receiver, receiverEnv, runGh);
   assert.equal(received.incoming, true);
   assert.equal(received.sourceUrl, context.url);
   assert.equal(received.sentry.project, 'source');
   assert.throws(() => interpretResponse(JSON.stringify(handoff), received, []), /Segundo/);
-  assert.throws(() => readContext(receiver, { ...receiverEnv, PATCHWORK_PUBLISH_APP_CLIENT_ID: 'outro-app' }, runGh), /Origem/);
-  assert.throws(() => readContext(receiver, receiverEnv, args => args[1] === 'apps/publisher' ? app : { ...issue, user: { ...issue.user, type: 'User' } }), /Origem/);
-  assert.throws(() => readContext(receiver, receiverEnv, args => args[1] === 'apps/publisher' ? app : { ...issue, body: '<!-- patchwork-handoff:v1 antigo -->' }), /antigo/);
+  assert.throws(() => readContext(receiver, { ...receiverEnv, PATCHWORK_PUBLISH_BOT_ID: '87' }, runGh), /Origem/);
+  assert.throws(() => readContext(receiver, receiverEnv, () => ({ ...issue, user: { ...issue.user, type: 'User' } })), /Origem/);
+  assert.throws(() => readContext(receiver, receiverEnv, () => ({ ...issue, body: '<!-- patchwork-handoff:v1 antigo -->' })), /antigo/);
 });
 
 test('resposta pequena diferencia correção, encaminhamento e ausência de alterações', () => {
