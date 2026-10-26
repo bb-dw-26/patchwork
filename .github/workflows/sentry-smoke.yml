@@ -57,6 +57,7 @@ jobs:
         run: |
           set -euo pipefail
           cli_pid=""
+          log_marker=$(cat /proc/sys/kernel/random/uuid)
           cleanup() {
             code=$?
             trap - EXIT INT TERM
@@ -66,15 +67,7 @@ jobs:
               kill -KILL -- "-$cli_pid" 2>/dev/null || true
               wait "$cli_pid" 2>/dev/null || true
             fi
-            if [[ -d "$PATCHWORK_DIR/logs" ]]; then
-              echo '::group::Diagnóstico do Copilot (debug)'
-              log_marker=$(cat /proc/sys/kernel/random/uuid)
-              echo "::stop-commands::$log_marker"
-              find "$PATCHWORK_DIR/logs" -maxdepth 1 -type f -name '*.log' -exec cat -- {} + || true
-              echo
-              echo "::$log_marker::"
-              echo '::endgroup::'
-            fi
+            printf '\n::%s::\n' "$log_marker"
             exit "$code"
           }
           trap cleanup EXIT
@@ -82,8 +75,13 @@ jobs:
           trap 'exit 143' TERM
           export COPILOT_HOME="$PATCHWORK_DIR/home"
           export COPILOT_SKILLS_DIRS="$COPILOT_HOME/skills"
-          args=(-p "$(cat "$PATCHWORK_DIR/prompt.md")" -s --no-color --no-ask-user
-            --log-level debug --log-dir "$PATCHWORK_DIR/logs"
+          # Mostrar o prompt e a saída normal, sem interpretar seu texto como comandos do Actions.
+          echo "::stop-commands::$log_marker"
+          printf 'Prompt enviado ao Copilot:\n\n'
+          cat "$PATCHWORK_DIR/prompt.md"
+          printf '\n\n'
+          args=(-p "$(cat "$PATCHWORK_DIR/prompt.md")" --no-color --no-ask-user
+            --stream on --log-level none --add-dir "$COPILOT_SKILLS_DIRS"
             --disable-builtin-mcps --additional-mcp-config "@$PATCHWORK_DIR/mcp.json"
             --allow-tool read --allow-tool write --allow-tool shell --allow-tool sentry
             --deny-tool 'shell(git push)' --deny-tool 'shell(git commit)')

@@ -52,6 +52,7 @@ test('encaminhamento aceita apenas App e origem permitidos; formato antigo não 
 test('resposta pequena diferencia correção, encaminhamento e ausência de alterações', () => {
   assert.equal(interpretResponse(JSON.stringify(repair), context, ['app.js']).outcome, 'repair');
   assert.equal(interpretResponse(`Execução direcionada apenas do arquivo de teste de endereços.\n\n${JSON.stringify(repair)}\n`, context, ['app.js']).outcome, 'repair');
+  assert.equal(interpretResponse(`Vou consultar o incidente.\n\n✓ Consultar Sentry (sentry-get_sentry_resource)\n  └ Consulta concluída.\n\n${JSON.stringify(repair)}\n\n`, context, ['app.js']).outcome, 'repair');
   assert.equal(interpretResponse(`Consultando Sentry.\n\n\`\`\`json\n${JSON.stringify(repair, null, 2)}\n\`\`\``, context, ['app.js']).outcome, 'repair');
   assert.throws(() => interpretResponse(`${JSON.stringify(repair)}\nresposta interrompida`, context, ['app.js']), /inválida/);
   assert.equal(interpretResponse(JSON.stringify(repair), context, []).outcome, 'noop');
@@ -95,7 +96,17 @@ test('contexto do CLI usa MCP de leitura e skills sem alterar o checkout ou grav
   assert.deepEqual(mcp.env, { SENTRY_ACCESS_TOKEN: '${SENTRY_ACCESS_TOKEN}' });
   assert.ok(mcp.args.includes('source'));
   assert.ok(existsSync(resolve(work, 'home/skills/patchwork-handoff/SKILL.md')));
-  assert.match(readFileSync(resolve(work, 'prompt.md'), 'utf8'), /Não execute a suíte completa/);
+  const prompt = readFileSync(resolve(work, 'prompt.md'), 'utf8');
+  assert.match(prompt, /Não execute a suíte completa/);
+  assert.match(prompt, /sem grep, tail|Encadeie build e teste com &&/);
+  assert.match(prompt, /verificação do workflow será registrada separadamente/);
+  for (const skill of ['patchwork-investigation', 'patchwork-sentry', 'patchwork-handoff']) {
+    assert.ok(prompt.includes(resolve(work, `home/skills/${skill}/SKILL.md`)));
+  }
+  assert.doesNotMatch(prompt, /~\/\.copilot/);
+  const smoke = prepareFiles(context, { temp: dir, smoke: true });
+  assert.ok(readFileSync(resolve(smoke, 'prompt.md'), 'utf8').includes(resolve(smoke, 'home/skills/patchwork-sentry/SKILL.md')));
+  await main('cleanup', { RUNNER_TEMP: dir, PATCHWORK_DIR: smoke });
   await main('cleanup', { RUNNER_TEMP: dir, PATCHWORK_DIR: work });
   assert.ok(!existsSync(work));
   await assert.rejects(main('cleanup', { RUNNER_TEMP: dir, PATCHWORK_DIR: resolve(dir, '..') }), /inesperado/);
@@ -121,7 +132,9 @@ test('teste reprovado impede qualquer publicação e teste aprovado abre PR draf
   assert.equal(createCalls, 0);
   const url = publishRepair(context, repair, { ...options, checkStatus: check(0) });
   assert.equal(pr.draft, true); assert.equal(pr.base, 'main');
-  assert.match(pr.body, /Verificação da aplicação: aprovada/);
+  assert.match(pr.body, /Análise do Copilot:/);
+  assert.match(pr.body, /Verificação pelo workflow: aprovada/);
+  assert.match(comments[0].body, /Análise do Copilot:[\s\S]*Verificação pelo workflow:/);
   assert.match(pr.body, /Comando: npm run check/);
   assert.equal(publishRepair(context, repair, { ...options, checkStatus: 'success' }), url);
   assert.equal(findPr(context, runGh), url);

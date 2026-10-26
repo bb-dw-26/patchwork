@@ -22,6 +22,8 @@ test('um job, dois checkouts, CLI direto e nenhum artefato ou executor próprio'
   assert.doesNotMatch(text, /candidate\.patch|incident\.json|validation\.(json|md)|agent-context\.json|execution\.json|regression-before\.log|report\.md/);
   assert.match(step('copilot').run, /copilot "\$@"/);
   assert.match(step('copilot').run, /--disable-builtin-mcps/);
+  assert.match(step('copilot').run, /--stream on --log-level none/);
+  assert.doesNotMatch(step('copilot').run, /--log-level debug|--log-dir| -s |--silent|find .*\.log/);
   // O token precisa chegar ao MCP; --secret-env-vars também remove o ambiente dos servidores.
   assert.doesNotMatch(step('copilot').run, /--secret-env-vars/);
   assert.equal(step('copilot').env.SENTRY_ACCESS_TOKEN, '${{ secrets.SENTRY_AUTH_TOKEN }}');

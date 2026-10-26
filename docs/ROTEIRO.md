@@ -43,7 +43,7 @@ O tempo é uma janela da apresentação, não uma promessa de duração do agent
 
 Mostre o único job: preparar contexto, executar o Copilot CLI, verificar a aplicação e publicar. A chamada ao CLI está no YAML; a integração fica em scripts/patchwork.js. Não há SDK próprio nem artefatos para navegar. Os consumidores acompanham @main; publique o motor antes deles.
 
-Acompanhe os logs nativos do CLI, a saída de check_command e o resumo curto no PR ou na issue. A verificação completa acontece uma vez após a correção. Encaminhamentos não executam testes na origem e a hipótese deve ser confirmada no destino.
+Acompanhe o prompt enviado e a saída normal do CLI em tempo real: mensagens, explicações, chamadas e resultados exibidos no terminal. Os traces internos de debug ficam desativados. Em seguida, mostre a saída de check_command e o resumo no PR ou na issue, que distingue a análise do Copilot da verificação pelo workflow. A verificação completa acontece uma vez após a correção. Encaminhamentos não executam testes na origem e a hipótese deve ser confirmada no destino.
 
 ## Resultados a mostrar
 

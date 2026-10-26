@@ -67,7 +67,7 @@ Os comandos vêm do workflow do consumidor, nunca do corpo da issue. Checkout e 
 
 A autenticação usa `GITHUB_TOKEN` com `copilot-requests: write`. A organização precisa permitir o uso de Copilot CLI cobrado à organização. Não é necessário PAT pessoal. Consulte a [integração oficial](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli-in-actions).
 
-As skills compartilhadas ficam no diretório temporário do Copilot; a skill do serviço e AGENTS.md são lidos do checkout atual. O MCP usa o projeto de origem, inclusive em encaminhamentos, e permite somente `get_sentry_resource`, `search_issues` e `search_events`. O token Sentry entra pelo secret do Actions, que o mascara nos logs; a configuração MCP contém apenas a referência à variável de ambiente.
+As skills compartilhadas ficam em `COPILOT_HOME/skills`, no diretório temporário do Copilot. O prompt informa seus caminhos completos e o CLI recebe acesso a esse diretório; a skill do serviço e AGENTS.md são lidos do checkout atual. O escopo efetivo vem da configuração selecionada pelo consumidor. O MCP usa o projeto de origem, inclusive em encaminhamentos, e permite somente `get_sentry_resource`, `search_issues` e `search_events`. O token Sentry entra pelo secret do Actions, que o mascara nos logs; a configuração MCP contém apenas a referência à variável de ambiente.
 
 O Copilot acrescenta uma regressão pertinente e resume a causa e a mudança. O workflow executa a verificação completa uma vez após sua resposta. Formato final:
 
@@ -79,7 +79,9 @@ Também são aceitos `noop`, sem alterações, e `handoff`, com `destination` au
 
 Prompt, configuração MCP, resposta e estado local do CLI são temporários e removidos no encerramento. O shell encerra o grupo de processos do CLI em sucesso, falha, timeout ou cancelamento. O limite do CLI é 15 minutos e o da verificação é 8 minutos.
 
-Reparo e smoke habilitam `--log-level debug`. Ao encerrar o step, os arquivos de diagnóstico nativos aparecem no grupo **Diagnóstico do Copilot (debug)** do log da Action, inclusive em falhas. A resposta JSON permanece separada dos logs; os arquivos temporários são removidos no encerramento, sem upload de artefatos. As opções de log estão na [referência do CLI](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference#command-line-options).
+Reparo e smoke mostram o prompt enviado e a saída normal do CLI em tempo real, com `--stream on`, sem `--silent`: mensagens de progresso, explicações, chamadas, resultados, erros e estatísticas que o próprio CLI exibir. `--log-level none` desliga os arquivos de diagnóstico; não há despejo de traces, requisições internas ou raciocínio extraído de arquivos de debug. A saída padrão é copiada para o temporário da resposta, de onde o step seguinte lê o JSON final; as estatísticas nativas ficam em stderr. A Action desativa a interpretação de comandos durante essa saída. Os temporários são removidos ao encerrar, sem upload de artefatos. As opções estão na [referência do CLI](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference#command-line-options).
+
+O agente pode executar um teste direcionado quando necessário, com saída e código de erro preservados. A suíte completa roda uma vez no step de verificação. Resumo e PR distinguem a análise do Copilot da verificação executada pelo workflow.
 
 Este desenho usa um runner descartável para o workshop. Agente, testes e publicação compartilham esse runner; não existe isolamento por usuário ou por runners independentes. Os tokens dos Apps são emitidos somente depois do CLI e, no reparo, dos testes.
 
