@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { publishProposal } from "../scripts/engine.mjs";
+import { publishProposal, proposalTitle } from "../scripts/engine.mjs";
 
 const config = { repository: 'example/testing', baseBranch: 'demo/chk-001', scenario: 'CHK-001', sourceFiles: ['src/orders.ts'], testPattern: '^test/[a-z0-9-]+\\.test\\.ts$' };
 function fixture(t) {
@@ -33,6 +33,7 @@ function fixture(t) {
   git(seed, ["add", "."]);
   writeFileSync(join(artifacts, "candidate.patch"), execFileSync("git", ["diff", "--cached", "--binary"], { cwd: seed }));
   writeFileSync(join(artifacts, "report.md"), "Relatório sintético, sem agente real.");
+  writeFileSync(join(artifacts, 'incident.json'), JSON.stringify({ issueTitle: 'TypeError ao consultar endereço', sentryShortId: 'CHECKOUT-7' }));
   writeFileSync(join(artifacts, "validation.md"), "Evidência sintética para testar apenas a publicação.");
   writeFileSync(join(artifacts, 'validation.json'), JSON.stringify({passed:true,baseSha,tree:git(seed,['write-tree'])}));
   let copies = 0;
@@ -82,6 +83,7 @@ test("retoma depois de push concluído sem duplicar commits ou PR", (t) => {
   assert.equal(publishProposal(f.options()), f.prUrl);
   assert.equal(f.head(), originalHead);
   assert.equal(f.pr.draft, true);
+  assert.equal(f.pr.title, 'fix: [CHECKOUT-7] TypeError ao consultar endereço (#42)');
   assert.equal(f.pr.base, "demo/chk-001");
   assert.equal(publishProposal(f.options()), f.prUrl);
   assert.equal(f.createCalls, 2);
@@ -127,4 +129,13 @@ test("artifact ausente falha antes de publicar branch", (t) => {
   assert.throws(() => publishProposal(f.options()), /ENOENT/);
   assert.equal(f.git(f.remote, ["for-each-ref", "--format=%(refname)", "refs/heads/agent/"]), "");
   assert.equal(f.createCalls, 0);
+});
+
+test('título preserva identidade e trata texto como dados em uma linha limitada', () => {
+  assert.equal(proposalTitle({ issueTitle: 'TypeError\n\treading trim', sentryShortId: 'BBDW-CHECKOUT-7' }, '4'),
+    'fix: [BBDW-CHECKOUT-7] TypeError reading trim (#4)');
+  const title = proposalTitle({ issueTitle: 'x'.repeat(500), sentryShortId: 'CHECKOUT-7' }, '42');
+  assert.equal(title.length, 256);
+  assert.ok(title.endsWith(' (#42)'));
+  assert.throws(() => proposalTitle({ issueTitle: 'error', sentryShortId: 'invalid\ncode' }, '4'), /inválido/);
 });

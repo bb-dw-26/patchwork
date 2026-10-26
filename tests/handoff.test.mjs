@@ -70,6 +70,7 @@ test('ensaio: incidente backend → issue vinculada autenticada → PR no storef
   const dir = mkdtempSync(resolve(tmpdir(), 'patchwork-handoff-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   writeFileSync(resolve(dir, 'report.md'), 'Hipótese verificada no código do destino; regressão reproduzida.');
+  writeFileSync(resolve(dir, 'incident.json'), JSON.stringify({ issueTitle: 'Conflito no checkout', sentryShortId: 'CHECKOUT-7' }));
   writeFileSync(resolve(dir, 'validation.json'), JSON.stringify({ passed: true, baseSha: targetSha, tree: 'tree' }));
   const calls = [];
   const pr = publishProposal({ config: { ...receiver, baseBranch: 'demo/incident' }, baseSha: targetSha, number: '2', artifactDir: dir, runId: '71', summaryPath: resolve(dir, 'summary'),

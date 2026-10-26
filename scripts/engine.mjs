@@ -53,6 +53,7 @@ export function incidentFromEvent(issue, detail, event, config, sha) {
         .map(frame => ({ filename: frame.filename.slice(0, 240), line: frame.lineNo, function: String(frame.function ?? '').slice(0, 120) })).slice(-30),
     }));
   return { number: issue.number, url: `https://github.com/${config.repository}/issues/${issue.number}`,
+    issueTitle: issue.title, sentryShortId: detail.shortId,
     sentryUrl: `https://${config.sentry.org}.sentry.io/issues/${detail.id}/`, sentryIssue: String(detail.id),
     event: event.eventID, release, scenario: config.scenario ?? null, exceptions,
     sourceSentry: config.sentry,
@@ -84,6 +85,15 @@ const git = (args, cwd = 'app') => execFileSync('git', args, { cwd, encoding: 'u
 const gh = (args, input) => JSON.parse(execFileSync('gh', args, { encoding: 'utf8', input }));
 const branchName = (config, number) => `agent/${(config.scenario ?? 'patchwork').toLowerCase()}-issue-${number}`;
 
+export function proposalTitle(incident, number) {
+  const title = typeof incident?.issueTitle === 'string'
+    ? incident.issueTitle.replace(/[\p{Cc}\p{Cf}]/gu, ' ').replace(/\s+/g, ' ').trim() : '';
+  if (!title || !/^[A-Z0-9]+(?:-[A-Z0-9]+)+$/.test(incident?.sentryShortId ?? '') ||
+      incident.sentryShortId.length > 100 || !positive(number)) throw new Error('Título da issue ou código Sentry inválido.');
+  const prefix = `fix: [${incident.sentryShortId}] `, suffix = ` (#${number})`;
+  return prefix + title.slice(0, 256 - prefix.length - suffix.length) + suffix;
+}
+
 export function publishProposal({ config, runGit = git, runGh = gh, baseSha, number, artifactDir, runId, summaryPath }) {
   if (!positive(number) || !fullSha(baseSha)) throw new Error('Identidade inválida.');
   const repository = config.repository;
@@ -94,6 +104,7 @@ export function publishProposal({ config, runGit = git, runGh = gh, baseSha, num
   const comment = prUrl => publishIssueSummary({ repository, number, prUrl, runId, report, runGh });
   const previous = runGh(['pr', 'list', '--repo', repository, '--head', branch, '--state', 'all', '--json', 'url']);
   if (previous.length) { comment(previous[0].url); return previous[0].url; }
+  const title = proposalTitle(JSON.parse(readFileSync(resolve(artifactDir, 'incident.json'), 'utf8')), number);
   if (runGh(['api', `repos/${repository}/git/ref/heads/${config.baseBranch}`]).object.sha !== baseSha) throw new Error('A base mudou; não publicar proposta desatualizada.');
   runGit(['apply', '--index', resolve(artifactDir, 'candidate.patch')]);
   validateChanges(runGit(['diff', '--cached', '--name-status', '--no-renames']), config);
@@ -109,9 +120,9 @@ export function publishProposal({ config, runGit = git, runGh = gh, baseSha, num
     runGit(['commit', '-m', `fix: corrige incidente da issue #${number}`]);
     runGit(['push', 'origin', `HEAD:refs/heads/${branch}`]);
   }
-  const body = `Proposta do Patchwork para #${number}, base ${baseSha}. Requer revisão humana.\n\nTeste novo falhou antes e verificações passaram depois.\n[Execução e evidências](https://github.com/${repository}/actions/runs/${runId})\n\n${report}\n\nSem merge ou deploy automáticos. O GITHUB_TOKEN não dispara outro CI de PR; a validação ocorreu em runner separado.\n`;
+  const body = `Proposta do Patchwork para #${number}, base ${baseSha}. Requer revisão humana.\n\nTeste novo falhou antes e verificações passaram depois.\n[Execução e evidências](https://github.com/${repository}/actions/runs/${runId})\n\n${report}\n\nSem merge ou deploy automáticos. PRs criados com GITHUB_TOKEN exigem aprovação para executar o CI do PR; a validação acima ocorreu em runner separado.\n`;
   const pr = runGh(['api', `repos/${repository}/pulls`, '--method', 'POST', '--input', '-'], JSON.stringify({
-    title: `fix: corrige incidente #${number}`, head: branch, base: config.baseBranch, draft: true, body,
+    title, head: branch, base: config.baseBranch, draft: true, body,
   }));
   appendFileSync(summaryPath, `PR para revisão: ${pr.html_url}\n`);
   comment(pr.html_url);

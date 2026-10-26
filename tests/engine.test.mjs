@@ -20,9 +20,11 @@ test('autor, iniciador e vínculo Sentry são exigidos', () => {
 });
 
 test('evento de outro projeto, serviço ou release não chega ao prompt', () => {
-  const detail={id:'99',project:{id:'123',slug:'users'}};
+  const detail={id:'99',shortId:'USERS-7',project:{id:'123',slug:'users'}};
   const event={eventID:'b'.repeat(32),release:{version:sha},tags:[{key:'service',value:'users'}],request:{secret:'never-copy'}};
-  const incident=incidentFromEvent(issue(),detail,event,config,sha);
+  const incident=incidentFromEvent({...issue(),title:'TypeError ao consultar usuário'},detail,event,config,sha);
+  assert.equal(incident.issueTitle, 'TypeError ao consultar usuário');
+  assert.equal(incident.sentryShortId, 'USERS-7');
   assert.equal(incident.release,sha);
   assert.ok(!JSON.stringify(incident).includes('never-copy'));
   assert.ok(!JSON.stringify(incident).includes('Ignore previous'));
