@@ -96,7 +96,8 @@ jobs:
     needs: prepare
     outputs:
       outcome: ${{ steps.export.outputs.outcome }}
-    runs-on: ubuntu-latest
+    # O sandbox de rede usa namespaces sem privilégio, disponíveis nesta imagem.
+    runs-on: ubuntu-22.04
     timeout-minutes: 20
     permissions:
       contents: read
