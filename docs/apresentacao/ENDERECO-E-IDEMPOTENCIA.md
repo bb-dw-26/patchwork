@@ -9,7 +9,9 @@ Material exclusivo do operador. Não fornecer aos agentes de reparo.
 
 ## Evidência local
 
-Os testes de comportamento correto permanecem ativos. Na revisão defeituosa, o contrato de CEP inexistente falha com 500 em vez de 404; os três testes de envio repetido falham. Controles temporários, fora dos repositórios das aplicações, confirmam que tratar o retorno do ViaCEP e restaurar o lock imediato com botão desabilitado fazem as suítes passarem. Nenhum controle é publicado como versão healthy.
+Por decisão do operador, foram removidos os três testes que exigiam bloqueio de envio repetido no storefront e o teste que exigia 404 para CEP inexistente no checkout. As falhas de produção permanecem na main. Cabe ao agente de reparo criar esses testes de regressão e demonstrar falha antes e sucesso depois da correção. A suíte inicial verde não comprova a correção de CHK-003 ou CHK-004.
+
+Permanecem os testes de idempotência do backend (reserva, concorrência, captura única e replay), estabilidade da chave, validações, formulário, catálogo e telemetria. Os resultados anteriores com testes deliberadamente falhando são registros históricos da validação anterior a essa decisão.
 
 O smoke integrado testa retirada sem consulta de CEP, entrega com API simulada e layout mobile. Coletores Sentry locais verificam captura única e ausência de dados pessoais. O motor mantém investigação local como padrão; somente evidência de causa externa permite propor encaminhamento, publicado por job separado.
 

@@ -16,6 +16,6 @@ Execute storefront, checkout e catalog das revisões publicadas em `main`. Use a
 
 Tratar `erro: true` (inclusive representação textual) antes do mapeamento, retornando `404 POSTAL_CODE_NOT_FOUND`. Não usar CEP especial, fixture alterada, exceção suprimida ou fallback fictício. Transporte continua sendo 503 e formato inválido 422.
 
-O teste de contrato usa servidor local e deve falhar antes e passar depois. O teste novo do agente precisa demonstrar regressão; os existentes são preservados. Não realizar merge ou deploy do reparo. Encerre processos iniciados.
+A cobertura prévia que exigia 404 para CEP inexistente foi removida por decisão do operador. O agente deve criar um teste de contrato com servidor local, demonstrando falha antes e sucesso depois da correção. Os demais testes existentes são preservados. Não realizar merge ou deploy do reparo. Encerre processos iniciados.
 
 Fonte do contrato externo: [ViaCEP](https://viacep.com.br/). O ensaio real deve ser pequeno; testes automatizados usam servidor simulado.
